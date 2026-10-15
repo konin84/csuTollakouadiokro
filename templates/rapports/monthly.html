@@ -13,7 +13,7 @@
 <div class="print-only"><h2>{{ facility.name }} – Tableau de bord des recettes – {{ month_name }}</h2></div>
 
 <div class="grid grid-4" style="margin-bottom:16px">
-  <div class="card kpi"><div class="label">Recette brute</div><div class="value">{{ total.gross|fcfa }}</div><div class="sub">{{ total.sessions }} journée(s)</div></div>
+  <div class="card kpi"><div class="label">Recette brute</div><div class="value">{{ total.gross|fcfa }}</div><div class="sub">{{ total.sessions }} journée(s) · {{ total.patients }} patient(s) enregistré(s)</div></div>
   <div class="card kpi"><div class="label">Commissions labo reversées</div><div class="value">{{ total.commissions_paid|fcfa }}</div></div>
   <div class="card kpi"><div class="label">Dépenses</div><div class="value">{{ total.expenses_total|fcfa }}</div></div>
   <div class="card kpi"><div class="label">Recette nette</div><div class="value">{{ total.net_total|fcfa }}</div><div class="sub">Entrées+Labo {{ total.net_entree|fcfa }} · Pharma+Écho {{ total.net_pharma|fcfa }}</div></div>
@@ -30,14 +30,14 @@
       <tr><td>Nombre</td>{% for a in acts %}<td class="num">{% if a.by_quantity %}{{ total.acts_qty|get:a.id|num0 }}{% endif %}</td>{% endfor %}<td></td><td></td></tr>
     </tfoot>
     {% else %}
-    <thead><tr><th>Date</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net Entrées+Labo</th><th class="num">Net Pharma+Écho</th><th class="num">Net</th><th>Statut</th></tr></thead>
+    <thead><tr><th>Date</th><th class="num">Patients</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net Entrées+Labo</th><th class="num">Net Pharma+Écho</th><th class="num">Net</th><th>Statut</th></tr></thead>
     <tbody>{% for s, t in days %}<tr>
       <td class="nowrap"><a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"D d/m" }}</a></td>
-      <td class="num">{{ t.entries_excl_lab|num }}</td><td class="num">{{ t.lab|num }}</td><td class="num">{{ t.echo|num }}</td><td class="num">{{ t.pharmacy|num }}</td>
+      <td class="num">{{ t.patients|num }}</td><td class="num">{{ t.entries_excl_lab|num }}</td><td class="num">{{ t.lab|num }}</td><td class="num">{{ t.echo|num }}</td><td class="num">{{ t.pharmacy|num }}</td>
       <td class="num">{{ t.gross|num0 }}</td><td class="num">{{ t.commissions_paid|num }}</td><td class="num">{{ t.expenses_total|num }}</td>
       <td class="num {% if t.net_entree|neg %}neg{% endif %}">{{ t.net_entree|num0 }}</td><td class="num {% if t.net_pharma|neg %}neg{% endif %}">{{ t.net_pharma|num0 }}</td><td class="num strong">{{ t.net_total|num0 }}</td>
-      <td><span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span></td></tr>{% empty %}<tr><td colspan="12" class="muted">Aucune journée saisie.</td></tr>{% endfor %}</tbody>
-    <tfoot><tr><td>Total</td><td class="num">{{ total.entries_excl_lab|num0 }}</td><td class="num">{{ total.lab|num0 }}</td><td class="num">{{ total.echo|num0 }}</td><td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td><td class="num">{{ total.commissions_paid|num0 }}</td><td class="num">{{ total.expenses_total|num0 }}</td><td class="num">{{ total.net_entree|num0 }}</td><td class="num">{{ total.net_pharma|num0 }}</td><td class="num">{{ total.net_total|num0 }}</td><td></td></tr></tfoot>
+      <td><span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span></td></tr>{% empty %}<tr><td colspan="13" class="muted">Aucune journée saisie.</td></tr>{% endfor %}</tbody>
+    <tfoot><tr><td>Total</td><td class="num">{{ total.patients|num0 }}</td><td class="num">{{ total.entries_excl_lab|num0 }}</td><td class="num">{{ total.lab|num0 }}</td><td class="num">{{ total.echo|num0 }}</td><td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td><td class="num">{{ total.commissions_paid|num0 }}</td><td class="num">{{ total.expenses_total|num0 }}</td><td class="num">{{ total.net_entree|num0 }}</td><td class="num">{{ total.net_pharma|num0 }}</td><td class="num">{{ total.net_total|num0 }}</td><td></td></tr></tfoot>
     {% endif %}
   </table></div>
 </div>

@@ -234,3 +234,55 @@ class PermissionTests(StockBase):
     def test_supervisor_can_manage_stock(self):
         self.client.force_login(self.boss)
         self.assertEqual(self.client.get("/stock/inventaire/").status_code, 200)
+
+
+class StockEntryTests(StockBase):
+    def test_add_stock_from_product_page(self):
+        p = self.product("PARACETAMOL", purchase_price=100)
+        self.client.force_login(self.pharma)
+        self.assertContains(self.client.get(f"/stock/produit/{p.id}/"), "Ajouter du stock")
+        r = self.client.post(f"/stock/produit/{p.id}/entree/", {"quantity": 500, "date": "2026-10-15",
+                                                                "unit_cost": 90, "reference": "Facture 12"})
+        self.assertRedirects(r, f"/stock/produit/{p.id}/", fetch_redirect_response=False)
+        p.refresh_from_db()
+        self.assertEqual((p.stock_qty, p.purchase_price), (500, 90))
+        m = p.movements.get()
+        self.assertEqual((m.kind, m.reference, m.created_by), (StockMovement.ENTRY, "Facture 12", self.pharma))
+
+    def test_donation_keeps_purchase_price(self):
+        p = self.product("DON", purchase_price=100)
+        self.client.force_login(self.pharma)
+        self.client.post(f"/stock/produit/{p.id}/entree/", {"quantity": 20, "date": "2026-10-15", "unit_cost": 0})
+        p.refresh_from_db()
+        self.assertEqual((p.stock_qty, p.purchase_price), (20, 100))
+
+    def test_invalid_entry_shows_errors_without_saving(self):
+        p = self.product("ERREUR", purchase_price=100)
+        self.client.force_login(self.pharma)
+        r = self.client.post(f"/stock/produit/{p.id}/entree/", {"quantity": 0, "date": "2026-10-15",
+                                                                "name": "NE PAS RENOMMER"})
+        self.assertEqual(r.status_code, 200)
+        p.refresh_from_db()
+        self.assertEqual((p.name, p.stock_qty), ("ERREUR", 0))
+
+    def test_cashier_cannot_add_stock(self):
+        p = self.product("X")
+        self.client.force_login(self.cashier)
+        self.assertNotContains(self.client.get(f"/stock/produit/{p.id}/"), "Ajouter du stock")
+        r = self.client.post(f"/stock/produit/{p.id}/entree/", {"quantity": 5, "date": "2026-10-15"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_initial_stock_on_creation(self):
+        self.client.force_login(self.pharma)
+        self.client.post("/stock/produit/nouveau/", {"name": "AMOXI 500", "form": "COMPRIME", "unit": "gélule",
+                                                     "sale_price": 75, "purchase_price": 40, "reorder_level": 50,
+                                                     "active": "on", "initial_stock": 300})
+        p = Product.objects.get(name="AMOXI 500")
+        self.assertEqual(p.stock_qty, 300)
+        self.assertEqual(p.movements.get().kind, StockMovement.INITIAL)
+
+    def test_loss_form_prefilled_from_product(self):
+        p = self.product("PREREMPLI", initial=5)
+        self.client.force_login(self.pharma)
+        r = self.client.get("/stock/sortie/", {"produit": p.id})
+        self.assertContains(r, f'<option value="{p.id}" selected>')

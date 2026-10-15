@@ -100,6 +100,11 @@ class VisitForm(forms.ModelForm):
             "age": forms.NumberInput(attrs={"min": 0, "max": 130, "inputmode": "numeric"}),
         }
 
+    def clean_phone(self):
+        # chiffres uniquement (et + initial) : la recherche par téléphone ne dépend pas des espaces
+        raw = self.cleaned_data["phone"].strip()
+        return ("+" if raw.startswith("+") else "") + "".join(ch for ch in raw if ch.isdigit())
+
     def clean_patient_name(self):
         name = " ".join(self.cleaned_data["patient_name"].split())
         if len(name) < 2:

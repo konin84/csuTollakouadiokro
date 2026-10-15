@@ -116,6 +116,7 @@ class PurchaseOrderLine(models.Model):
 class StockMovement(models.Model):
     INITIAL = "INITIAL"
     RECEPTION = "RECEPTION"
+    ENTRY = "ENTREE"
     SALE = "VENTE"
     ADJUST = "INVENTAIRE"
     LOSS = "PERTE"
@@ -123,6 +124,7 @@ class StockMovement(models.Model):
     KINDS = [
         (INITIAL, "Stock initial"),
         (RECEPTION, "Réception commande"),
+        (ENTRY, "Entrée directe (achat, don)"),
         (SALE, "Vente"),
         (ADJUST, "Ajustement d'inventaire"),
         (LOSS, "Perte / périmé / casse"),

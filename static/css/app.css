@@ -197,6 +197,10 @@ ul.alerts { list-style: none; margin: 0; padding: 0; }
 .receipt-head strong { font-size: 1.05rem; }
 .receipt-meta { display: grid; gap: 2px; margin-bottom: 10px; font-size: .92rem; }
 .receipt-meta span { display: inline-block; min-width: 92px; color: var(--muted); }
+.suggestions { margin-top: 10px; display: grid; gap: 4px; }
+.suggestions[hidden] { display: none; }
+.suggestion { text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: .9rem; }
+.suggestion:hover { border-color: var(--brand); background: var(--brand-soft); }
 input[readonly] { background: var(--surface-2); color: var(--muted); }
 @page receipt { size: A5 portrait; margin: 8mm; }
 @media print {

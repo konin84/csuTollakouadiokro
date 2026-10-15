@@ -3,8 +3,8 @@ from datetime import date, datetime, timedelta
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Sum
-from django.http import HttpResponse
+from django.db.models import Q, Sum
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -62,12 +62,22 @@ def _session_context(request, session):
             groups.append((label, []))
         groups[-1][1].append(e)
     categories = list(ExpenseCategory.objects.filter(active=True))
+    visits = list(Visit.objects.filter(session=session).select_related("created_by")
+                  .prefetch_related("acts__act", "sales__product"))
+    by_cashier = {}
+    for v in visits:
+        if v.cancelled:
+            continue
+        name = (v.created_by.get_full_name() or v.created_by.username) if v.created_by else "—"
+        row = by_cashier.setdefault(name, {"name": name, "count": 0, "amount": 0})
+        row["count"] += 1
+        row["amount"] += v.total
     return {
         "session": session,
         "totals": totals,
         "groups": groups,
-        "visits": Visit.objects.filter(session=session).select_related("created_by")
-                  .prefetch_related("acts__act", "sales__product"),
+        "visits": visits,
+        "by_cashier": sorted(by_cashier.values(), key=lambda r: r["name"]),
         "editable": _editable(request, session),
         "can_sell": session.is_open and can(request.user, "ventes"),
         "expense_form": ExpenseForm(initial={"fund": FUND_ENTREE}),
@@ -486,3 +496,31 @@ def visit_cancel(request, day, pk):
     log("cancel", visit, {"motif": form.cleaned_data["reason"]})
     messages.info(request, f"Reçu {visit.number} annulé : les produits sont remis en stock.")
     return redirect("session_detail", day=day)
+
+
+@require("saisie")
+def patient_search(request):
+    """Patients déjà venus, retrouvés par le nom (3 lettres) ou le téléphone (4 chiffres)."""
+    q = " ".join(request.GET.get("q", "").split())
+    digits = "".join(ch for ch in q if ch.isdigit())
+    if len(q) < 3:
+        return JsonResponse({"patients": []})
+    cond = Q(patient_name__icontains=q)
+    if len(digits) >= 4:
+        cond |= Q(phone__contains=digits)
+    today = timezone.localdate()
+    found = {}
+    for v in Visit.objects.filter(cond, cancelled=False).select_related("session").order_by("-id")[:300]:
+        key = (v.patient_name.upper(), v.phone)
+        if key in found:
+            found[key]["visits"] += 1
+            continue
+        if len(found) >= 8:
+            continue
+        found[key] = {
+            "name": v.patient_name, "phone": v.phone, "sex": v.sex,
+            # âge mis à jour depuis le dernier passage (approximation à l'année)
+            "age": v.age + (today.year - v.session.date.year) if v.age is not None else None,
+            "last": f"{v.session.date:%d/%m/%Y}", "visits": 1,
+        }
+    return JsonResponse({"patients": list(found.values())})

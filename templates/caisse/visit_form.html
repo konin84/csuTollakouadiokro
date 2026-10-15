@@ -19,6 +19,7 @@
         <div><label for="{{ form.sex.id_for_label }}">Sexe</label>{{ form.sex }}{{ form.sex.errors }}</div>
         <div><label for="{{ form.age.id_for_label }}">Âge (ans)</label>{{ form.age }}{{ form.age.errors }}</div>
       </div>
+      <div id="patient-suggestions" class="suggestions" hidden></div>
     </section>
 
     <section class="card">
@@ -136,6 +137,47 @@
     });
     document.getElementById('visit-total').textContent = fmt(total) + ' F';
   }
+
+  // Patients déjà venus : suggestions pendant la saisie du nom ou du téléphone
+  var box = document.getElementById('patient-suggestions'), timer = null, found = [];
+  var searchUrl = "{% url 'patient_search' %}";
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function suggest(q) {
+    fetch(searchUrl + '?q=' + encodeURIComponent(q), {headers: {'Accept': 'application/json'}})
+      .then(function (r) { return r.ok ? r.json() : {patients: []}; })
+      .then(function (data) {
+        found = data.patients || [];
+        if (!found.length) { box.hidden = true; return; }
+        box.innerHTML = '<div class="small muted">Déjà venu(e) ? Cliquez pour reprendre ses informations :</div>' +
+          found.map(function (p, i) {
+            return '<button type="button" class="suggestion" data-i="' + i + '"><b>' + esc(p.name) + '</b> ' +
+              (p.phone ? esc(p.phone) + ' · ' : '') + (p.age != null ? esc(p.age) + ' ans · ' : '') +
+              '<span class="muted">' + esc(p.visits) + ' passage(s), dernier le ' + esc(p.last) + '</span></button>';
+          }).join('');
+        box.hidden = false;
+      }).catch(function () { box.hidden = true; });
+  }
+  ['id_patient_name', 'id_phone'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = el.value.trim();
+      if (q.length < 3) { box.hidden = true; return; }
+      timer = setTimeout(function () { suggest(q); }, 250);
+    });
+  });
+  box.addEventListener('click', function (ev) {
+    var b = ev.target.closest('.suggestion');
+    if (!b) return;
+    var p = found[+b.dataset.i];
+    form.elements['patient_name'].value = p.name;
+    form.elements['phone'].value = p.phone || '';
+    form.elements['sex'].value = p.sex || '';
+    form.elements['age'].value = p.age != null ? p.age : '';
+    box.hidden = true;
+    var first = form.querySelector('.act-select');
+    if (first) first.focus();
+  });
 
   form.addEventListener('input', refresh);
   form.addEventListener('change', refresh);

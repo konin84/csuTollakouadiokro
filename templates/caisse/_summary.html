@@ -42,6 +42,14 @@
     </dl>
   </div>
 
+  {% if by_cashier %}
+  <div class="fund">
+    <h3>Reçus encaissés par caissier</h3>
+    <dl>{% for c in by_cashier %}<dt>{{ c.name }} <span class="small">({{ c.count }} patient{{ c.count|pluralize }})</span></dt><dd>{{ c.amount|num0 }}</dd>{% endfor %}</dl>
+    <p class="small muted" style="margin:4px 0 0">Reçus patients uniquement : hors nombres saisis dans la grille, ventes sans patient et dépenses.</p>
+  </div>
+  {% endif %}
+
   {% for a in alerts %}<div class="alert alert-warn small">{{ a }}</div>{% endfor %}
 
   {% if session.is_open and perms_app.cloture %}

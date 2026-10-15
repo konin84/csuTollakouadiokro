@@ -65,6 +65,9 @@ Le tableau « Rapprochement par mois » montre, mois par mois, la recette nette 
 
 - **Stock** : quantité disponible de chaque produit, valeur du stock, produits **à commander**
   (sous le seuil d'alerte défini sur la fiche produit).
+- **Ajouter du stock** (achat direct, don) : ouvrir le produit → carte *Ajouter du stock* → quantité,
+  date, prix d'achat (vide = dernier prix, 0 pour un don) et référence (n° de facture, donateur).
+  À la création d'un produit, le champ *Stock initial* enregistre la quantité déjà présente.
 - **Commandes** : *Nouvelle commande* → ajouter les produits → *Marquer comme commandée* → à la livraison,
   *Réceptionner* (corriger les quantités réellement reçues) : le stock augmente.
   Le bon de commande s'imprime avec le bouton *Imprimer*.

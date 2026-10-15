@@ -8,7 +8,8 @@ from django.views.decorators.http import require_POST
 from core.audit import log
 from core.roles import can, require
 
-from .forms import InitialStockForm, LossForm, OrderForm, OrderLineForm, ProductForm
+from .forms import (InitialStockForm, LossForm, NewProductForm, OrderForm, OrderLineForm, ProductForm,
+                    StockEntryForm)
 from .models import Product, PurchaseOrder, PurchaseOrderLine, StockMovement
 
 
@@ -34,24 +35,52 @@ def product_list(request):
     })
 
 
-def product_detail(request, pk):
+def product_detail(request, pk, entry_form=None):
     product = get_object_or_404(_products_with_qty(), pk=pk)
     form = None
     if can(request.user, "stock"):
-        form = ProductForm(request.POST or None, instance=product)
-        if request.method == "POST" and form.is_valid():
+        posted = request.method == "POST" and entry_form is None  # sinon : POST de l'ajout de stock
+        form = ProductForm(request.POST if posted else None, instance=product)
+        if posted and form.is_valid():
             form.save()
             messages.success(request, "Produit enregistré.")
             return redirect("product_detail", pk=pk)
+        entry_form = entry_form or StockEntryForm(initial={"date": timezone.localdate()})
     movements = product.movements.select_related("created_by")[:200]
-    return render(request, "stock/product_detail.html", {"product": product, "form": form, "movements": movements})
+    return render(request, "stock/product_detail.html", {"product": product, "form": form, "movements": movements,
+                                                         "entry_form": entry_form})
+
+
+@require_POST
+@require("stock")
+def stock_entry(request, pk):
+    """Ajout de stock sans commande : achat direct, don, transfert…"""
+    product = get_object_or_404(Product, pk=pk)
+    form = StockEntryForm(request.POST)
+    if not form.is_valid():
+        return product_detail(request, pk, entry_form=form)
+    cost = form.cleaned_data["unit_cost"]
+    StockMovement.objects.create(
+        product=product, date=form.cleaned_data["date"], kind=StockMovement.ENTRY,
+        quantity=form.cleaned_data["quantity"], unit_cost=product.purchase_price if cost is None else cost,
+        reference=form.cleaned_data["reference"], note=form.cleaned_data["note"], created_by=request.user)
+    if cost:
+        product.purchase_price = cost
+        product.save(update_fields=["purchase_price"])
+    messages.success(request, f"{form.cleaned_data['quantity']} {product.unit} ajouté(s) au stock de « {product.name} ».")
+    return redirect("product_detail", pk=pk)
 
 
 @require("stock")
 def product_new(request):
-    form = ProductForm(request.POST or None)
+    form = NewProductForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         p = form.save()
+        if form.cleaned_data.get("initial_stock"):
+            StockMovement.objects.create(
+                product=p, date=timezone.localdate(), kind=StockMovement.INITIAL,
+                quantity=form.cleaned_data["initial_stock"], unit_cost=p.purchase_price,
+                reference="Stock initial (création du produit)", created_by=request.user)
         messages.success(request, f"Produit « {p.name} » créé.")
         return redirect("product_detail", pk=p.pk)
     return render(request, "stock/product_form.html", {"form": form})
@@ -192,7 +221,7 @@ def inventory(request):
 
 @require("stock")
 def loss(request):
-    form = LossForm(request.POST or None, initial={"date": timezone.localdate()})
+    form = LossForm(request.POST or None, initial={"date": timezone.localdate(), "product": request.GET.get("produit")})
     if request.method == "POST" and form.is_valid():
         p = form.cleaned_data["product"]
         StockMovement.objects.create(product=p, date=form.cleaned_data["date"], kind=StockMovement.LOSS,

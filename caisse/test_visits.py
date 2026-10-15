@@ -171,3 +171,38 @@ class DaySaleStockTests(VisitBase):
         self.client.post(f"{URL}/vente/", {"product": self.para.id, "quantity": 2, "unit_price": 50,
                                            "description": ""}, HTTP_HX_REQUEST="true")
         self.assertEqual(self.para.stock_qty, 8)
+
+
+class NextStepsTests(VisitBase):
+    def test_patient_counts_in_totals_and_report(self):
+        self.post_visit(acts=[(self.cpn, 1, "")])
+        self.post_visit(acts=[(self.cpn, 1, "")], patient_name="YAO Koffi")
+        self.post_visit(acts=[(self.cpn, 1, "")], patient_name="Annulé")
+        last = Visit.objects.get(patient_name="Annulé")
+        self.client.post(f"{URL}/patient/{last.id}/annuler/", {"reason": "erreur"})
+        self.assertEqual(self.totals().patients, 2)
+        self.client.force_login(self.boss)
+        r = self.client.get("/rapports/mensuel/", {"mois": "2026-10"})
+        self.assertContains(r, "2 patient(s) enregistré(s)")
+        self.assertEqual(self.client.get("/rapports/mensuel/excel/", {"mois": "2026-10"}).status_code, 200)
+        self.assertEqual(self.client.get("/rapports/annuel/excel/", {"annee": "2026"}).status_code, 200)
+
+    def test_takings_per_cashier(self):
+        self.post_visit(acts=[(self.cpn, 2, "")])
+        r = self.client.get(f"{URL}/")
+        self.assertContains(r, "Reçus encaissés par caissier")
+        self.assertEqual(r.context["by_cashier"], [{"name": "caissier", "count": 1, "amount": 2000}])
+
+    def test_patient_search(self):
+        self.post_visit(acts=[(self.cpn, 1, "")], phone="07 07 12 34 56", age="30")
+        self.post_visit(acts=[(self.cpn, 1, "")], phone="0707123456", age="30")
+        self.assertEqual(Visit.objects.first().phone, "0707123456")
+        by_phone = self.client.get("/caisse/patients/recherche/", {"q": "0707 12"}).json()["patients"]
+        self.assertEqual(len(by_phone), 1)
+        self.assertEqual((by_phone[0]["name"], by_phone[0]["visits"], by_phone[0]["sex"]), ("KOUASSI Amenan", 2, "F"))
+        self.assertEqual(len(self.client.get("/caisse/patients/recherche/", {"q": "koua"}).json()["patients"]), 1)
+        self.assertEqual(self.client.get("/caisse/patients/recherche/", {"q": "zz"}).json()["patients"], [])
+        pharma = User.objects.create_user("pharma2", password="x")
+        pharma.groups.add(Group.objects.get(name="Pharmacie"))
+        self.client.force_login(pharma)
+        self.assertEqual(self.client.get("/caisse/patients/recherche/", {"q": "koua"}).status_code, 403)

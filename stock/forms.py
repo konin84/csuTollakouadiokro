@@ -33,6 +33,22 @@ class OrderLineForm(forms.ModelForm):
         self.fields["unit_cost"].required = False  # vide = dernier prix d'achat (voir order_detail)
 
 
+class NewProductForm(ProductForm):
+    initial_stock = forms.IntegerField(label="Stock initial", min_value=0, required=False,
+                                       help_text="Quantité présente aujourd'hui (facultatif).")
+
+
+class StockEntryForm(forms.Form):
+    quantity = forms.IntegerField(label="Quantité ajoutée", min_value=1,
+                                  widget=forms.NumberInput(attrs={"inputmode": "numeric", "step": 1}))
+    date = forms.DateField(label="Date", widget=DateInput())
+    unit_cost = forms.IntegerField(label="Prix d'achat unitaire (F)", min_value=0, required=False,
+                                   help_text="Vide = dernier prix d'achat ; 0 pour un don.")
+    reference = forms.CharField(label="Référence", max_length=120, required=False,
+                                widget=forms.TextInput(attrs={"placeholder": "N° de facture, fournisseur, donateur…"}))
+    note = forms.CharField(label="Remarque", max_length=255, required=False)
+
+
 class LossForm(forms.Form):
     product = forms.ModelChoiceField(label="Produit", queryset=Product.objects.filter(active=True))
     quantity = forms.IntegerField(label="Quantité sortie", min_value=1)

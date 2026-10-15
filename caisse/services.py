@@ -44,6 +44,7 @@ class Totals:
     expenses_by_fund: dict = field(default_factory=lambda: defaultdict(int))
     expenses_by_category: dict = field(default_factory=lambda: defaultdict(int))
     sessions: int = 0
+    patients: int = 0  # passages patients non annulés
 
     # --- dérivés ---
     @property
@@ -102,6 +103,7 @@ class Totals:
         for k, v in other.expenses_by_category.items():
             self.expenses_by_category[k] += v
         self.sessions += other.sessions
+        self.patients += other.patients
         return self
 
 
@@ -132,6 +134,7 @@ def session_totals(session: CashSession) -> Totals:
     for v in session.visits.all():
         if v.cancelled:
             continue
+        t.patients += 1
         for line in v.acts.all():
             t.acts_amount[line.act_id] += line.amount
             t.acts_qty[line.act_id] += line.quantity

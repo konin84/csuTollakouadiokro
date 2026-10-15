@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><div class="crumb"><a href="{% url 'product_list' %}">Stock</a></div><h1>{{ product.name }}</h1></div>
-  <div class="actions"><span class="badge {% if product.reorder_level and product.stock_qty <= product.reorder_level %}badge-low{% else %}badge-ok{% endif %}" style="font-size:.95rem">En stock : {{ product.stock_qty }} {{ product.unit }}</span></div>
+  <div class="actions">{% if entry_form %}<a class="btn btn-sm" href="{% url 'stock_loss' %}?produit={{ product.id }}">Sortie (perte, périmé)</a><a class="btn btn-sm" href="{% url 'order_new' %}">Commander</a>{% endif %}<span class="badge {% if product.reorder_level and product.stock_qty <= product.reorder_level %}badge-low{% else %}badge-ok{% endif %}" style="font-size:.95rem">En stock : {{ product.stock_qty }} {{ product.unit }}</span></div>
 </div>
 <div class="split">
   <div class="card">
@@ -18,10 +18,18 @@
           <td class="num {% if m.quantity < 0 %}neg{% else %}pos{% endif %}">{% if m.quantity > 0 %}+{% endif %}{{ m.quantity }}</td>
           <td class="small muted">{{ m.note }}</td>
         </tr>
-      {% empty %}<tr><td colspan="5" class="muted">Aucun mouvement. Faites un inventaire pour saisir le stock de départ.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="5" class="muted">Aucun mouvement.{% if entry_form %} Utilisez « Ajouter du stock » pour saisir la quantité présente.{% endif %}</td></tr>{% endfor %}
       </tbody>
     </table></div>
   </div>
+  <div class="stack">
+  {% if entry_form %}
+  <div class="card" id="ajout">
+    <h2>Ajouter du stock</h2>
+    <p class="small muted">Achat direct, don… Pour une commande fournisseur, utilisez <a href="{% url 'order_list' %}">Commandes</a> puis « Réceptionner ».</p>
+    <form method="post" action="{% url 'stock_entry' product.id %}" class="form">{% csrf_token %}{{ entry_form.as_div }}<button class="btn btn-primary">Ajouter au stock</button></form>
+  </div>
+  {% endif %}
   <div class="card">
     <h2>Fiche produit</h2>
     {% if form %}
@@ -29,6 +37,7 @@
     {% else %}
     <dl class="summary"><dt>Forme</dt><dd>{{ product.get_form_display }}</dd><dt>Prix de vente</dt><dd>{{ product.sale_price|fcfa }}</dd><dt>Seuil d'alerte</dt><dd>{{ product.reorder_level }}</dd></dl>
     {% endif %}
+  </div>
   </div>
 </div>
 {% endblock %}

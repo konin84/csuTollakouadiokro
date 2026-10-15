@@ -62,18 +62,18 @@ def monthly_workbook(d):
     ws = wb.active
     ws.title = "Synthèse journalière"
     _title(ws, "TABLEAU DE BORD RECETTES", sub)
-    headers = ["Date", "Entrées (hors labo)", "Laboratoire", "Échographie", "Pharmacie", "Recette brute",
+    headers = ["Date", "Patients", "Entrées (hors labo)", "Laboratoire", "Échographie", "Pharmacie", "Recette brute",
                "Commissions labo reversées", "Dépenses", "Net Entrées + Labo", "Net Pharmacie + Écho",
                "Recette nette", "Argent compté", "Écart", "Statut"]
     rows = []
     for s, st in d["days"]:
-        rows.append([s.date, st.entries_excl_lab, st.lab, st.echo, st.pharmacy, st.gross, st.commissions_paid,
+        rows.append([s.date, st.patients, st.entries_excl_lab, st.lab, st.echo, st.pharmacy, st.gross, st.commissions_paid,
                      st.expenses_total, st.net_entree, st.net_pharma, st.net_total, s.counted_cash, s.cash_gap,
                      s.get_status_display()])
     last = _table(ws, 4, headers, rows,
-                  ["TOTAL", t.entries_excl_lab, t.lab, t.echo, t.pharmacy, t.gross, t.commissions_paid,
-                   t.expenses_total, t.net_entree, t.net_pharma, t.net_total, None, None, ""],
-                  widths=[12] + [14] * 12 + [11])
+                  ["TOTAL", t.patients, t.entries_excl_lab, t.lab, t.echo, t.pharmacy, t.gross,
+                   t.commissions_paid, t.expenses_total, t.net_entree, t.net_pharma, t.net_total, None, None, ""],
+                  widths=[12, 10] + [14] * 12 + [11])
     for r in range(5, last + 1):
         ws.cell(r, 1).number_format = "DD/MM/YYYY"
     r = last + 2
@@ -82,7 +82,7 @@ def monthly_workbook(d):
                          ("− Versements bancaires du mois", d["deposits_total"]),
                          ("= Argent en caisse à la fin du mois (théorique)", d["cash_end"])]:
         ws.cell(r, 1, label).font = Font(bold=True)
-        c = ws.cell(r, 6, value)
+        c = ws.cell(r, 7, value)
         c.number_format = NUM0
         r += 1
 
@@ -142,14 +142,14 @@ def annual_workbook(d):
     ws = wb.active
     ws.title = "Par mois"
     _title(ws, "RÉCAPITULATIF ANNUEL", sub)
-    headers = ["Mois", "Jours saisis", "Entrées (hors labo)", "Laboratoire", "Échographie", "Pharmacie",
+    headers = ["Mois", "Jours saisis", "Patients", "Entrées (hors labo)", "Laboratoire", "Échographie", "Pharmacie",
                "Recette brute", "Commissions reversées", "Dépenses", "Recette nette", "Versements"]
-    rows = [[r["name"], r["t"].sessions, r["t"].entries_excl_lab, r["t"].lab, r["t"].echo, r["t"].pharmacy,
+    rows = [[r["name"], r["t"].sessions, r["t"].patients, r["t"].entries_excl_lab, r["t"].lab, r["t"].echo, r["t"].pharmacy,
              r["t"].gross, r["t"].commissions_paid, r["t"].expenses_total, r["t"].net_total, r["deposits"]]
             for r in d["rows"]]
     _table(ws, 4, headers, rows,
-           ["TOTAL", g.sessions, g.entries_excl_lab, g.lab, g.echo, g.pharmacy, g.gross, g.commissions_paid,
-            g.expenses_total, g.net_total, d["deposits_total"]], widths=[14] + [14] * 10)
+           ["TOTAL", g.sessions, g.patients, g.entries_excl_lab, g.lab, g.echo, g.pharmacy, g.gross,
+            g.commissions_paid, g.expenses_total, g.net_total, d["deposits_total"]], widths=[14] + [14] * 11)
 
     ws = wb.create_sheet("Activité")
     _title(ws, "NOMBRE D'ACTES PAR MOIS", sub)

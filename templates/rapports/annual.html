@@ -19,13 +19,13 @@
 <div class="card" style="margin-bottom:16px">
   <h2>Par mois</h2>
   <div class="table-wrap"><table class="data">
-    <thead><tr><th>Mois</th><th class="num">Jours</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net</th><th class="num">Versé</th><th style="width:120px"></th></tr></thead>
+    <thead><tr><th>Mois</th><th class="num">Jours</th><th class="num">Patients</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net</th><th class="num">Versé</th><th style="width:120px"></th></tr></thead>
     <tbody>{% for r in rows %}<tr>
-      <td><a href="{% url 'report_monthly' %}?mois={{ year }}-{{ r.month|stringformat:'02d' }}">{{ r.name }}</a></td><td class="num">{{ r.t.sessions|num }}</td>
+      <td><a href="{% url 'report_monthly' %}?mois={{ year }}-{{ r.month|stringformat:'02d' }}">{{ r.name }}</a></td><td class="num">{{ r.t.sessions|num }}</td><td class="num">{{ r.t.patients|num }}</td>
       <td class="num">{{ r.t.entries_excl_lab|num }}</td><td class="num">{{ r.t.lab|num }}</td><td class="num">{{ r.t.echo|num }}</td><td class="num">{{ r.t.pharmacy|num }}</td>
       <td class="num">{{ r.t.gross|num }}</td><td class="num">{{ r.t.commissions_paid|num }}</td><td class="num">{{ r.t.expenses_total|num }}</td><td class="num strong">{{ r.t.net_total|num }}</td><td class="num">{{ r.deposits|num }}</td>
       <td><div class="hbar" title="Brut"><span style="width:{{ r.pct|unlocalize }}%"></span></div></td></tr>{% endfor %}</tbody>
-    <tfoot><tr><td>Total</td><td class="num">{{ grand.sessions }}</td><td class="num">{{ grand.entries_excl_lab|num0 }}</td><td class="num">{{ grand.lab|num0 }}</td><td class="num">{{ grand.echo|num0 }}</td><td class="num">{{ grand.pharmacy|num0 }}</td><td class="num">{{ grand.gross|num0 }}</td><td class="num">{{ grand.commissions_paid|num0 }}</td><td class="num">{{ grand.expenses_total|num0 }}</td><td class="num">{{ grand.net_total|num0 }}</td><td class="num">{{ deposits_total|num0 }}</td><td></td></tr></tfoot>
+    <tfoot><tr><td>Total</td><td class="num">{{ grand.sessions }}</td><td class="num">{{ grand.patients|num0 }}</td><td class="num">{{ grand.entries_excl_lab|num0 }}</td><td class="num">{{ grand.lab|num0 }}</td><td class="num">{{ grand.echo|num0 }}</td><td class="num">{{ grand.pharmacy|num0 }}</td><td class="num">{{ grand.gross|num0 }}</td><td class="num">{{ grand.commissions_paid|num0 }}</td><td class="num">{{ grand.expenses_total|num0 }}</td><td class="num">{{ grand.net_total|num0 }}</td><td class="num">{{ deposits_total|num0 }}</td><td></td></tr></tfoot>
   </table></div>
 </div>
 <div class="card" style="margin-bottom:16px">
