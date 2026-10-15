@@ -48,6 +48,12 @@ class Act(models.Model):
     )
     order = models.PositiveIntegerField("ordre d'affichage", default=100)
     active = models.BooleanField("actif", default=True)
+    product = models.ForeignKey(
+        "stock.Product", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+        verbose_name="produit consommé",
+        help_text="Produit retiré du stock à chaque acte (ex. Gant → 1 paire de gants). Laisser vide sinon.",
+    )
+    product_quantity = models.PositiveIntegerField("quantité consommée par acte", default=1)
 
     class Meta:
         ordering = ["order", "name"]
@@ -269,11 +275,75 @@ class Deposit(models.Model):
 
 
 
+class Visit(models.Model):
+    """Passage d'un patient à la caisse : un reçu numéroté avec ses actes et ses produits.
+
+    Les actes s'ajoutent aux nombres saisis dans la grille de la journée ; les produits
+    sont des ventes pharmacie (PharmacySale.visit) et sortent du stock.
+    Un reçu n'est jamais supprimé : il est annulé, avec un motif."""
+
+    SEXES = [("F", "Féminin"), ("M", "Masculin")]
+
+    session = models.ForeignKey(CashSession, on_delete=models.PROTECT, related_name="visits")
+    number = models.CharField("n° de reçu", max_length=20, unique=True)
+    patient_name = models.CharField("nom et prénoms du patient", max_length=150)
+    phone = models.CharField("téléphone", max_length=30, blank=True)
+    sex = models.CharField("sexe", max_length=1, choices=SEXES, blank=True)
+    age = models.PositiveSmallIntegerField("âge (ans)", null=True, blank=True,
+                                           help_text="0 pour un enfant de moins d'un an.")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", verbose_name="caissier")
+    created_at = models.DateTimeField("heure", auto_now_add=True)
+    cancelled = models.BooleanField("annulé", default=False)
+    cancel_reason = models.CharField("motif d'annulation", max_length=255, blank=True)
+    cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="+", verbose_name="annulé par")
+    cancelled_at = models.DateTimeField("annulé le", null=True, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "passage patient"
+        verbose_name_plural = "passages patients"
+
+    def __str__(self):
+        return f"Reçu {self.number} – {self.patient_name}"
+
+    @property
+    def total(self):
+        return sum(a.amount for a in self.acts.all()) + sum(s.amount for s in self.sales.all())
+
+    @classmethod
+    def next_number(cls, day):
+        prefix = f"{day:%Y}-"
+        last = cls.objects.filter(number__startswith=prefix).order_by("-number").first()
+        n = int(last.number.rsplit("-", 1)[1]) + 1 if last else 1
+        return f"{prefix}{n:06d}"
+
+
+class VisitAct(models.Model):
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name="acts")
+    act = models.ForeignKey(Act, on_delete=models.PROTECT, verbose_name="acte")
+    quantity = models.PositiveIntegerField("nombre", default=1)
+    unit_price = models.PositiveIntegerField("prix unitaire", null=True, blank=True)
+    amount = models.PositiveIntegerField("montant (F)", default=0)
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "acte du passage"
+        verbose_name_plural = "actes du passage"
+
+    def __str__(self):
+        return f"{self.act} × {self.quantity}"
+
+
 class PharmacySale(models.Model):
     """Vente pharmacie du jour. Avec un produit : le stock est décrémenté.
-    Sans produit : montant global (comme dans l'ancien tableau Excel)."""
+    Sans produit : montant global (comme dans l'ancien tableau Excel).
+    Avec un passage (visit) : produit vendu à un patient, sur son reçu."""
 
     session = models.ForeignKey(CashSession, on_delete=models.CASCADE, related_name="sales")
+    visit = models.ForeignKey(Visit, null=True, blank=True, on_delete=models.CASCADE, related_name="sales",
+                              verbose_name="passage")
     product = models.ForeignKey("stock.Product", null=True, blank=True, on_delete=models.PROTECT,
                                 verbose_name="produit")
     description = models.CharField("libellé", max_length=200, blank=True)
@@ -296,5 +366,5 @@ class PharmacySale(models.Model):
 
 
 for _model in (Act, ActPrice, CommissionRule, ExpenseCategory, BankAccount, CashSession, ActEntry, Expense,
-               Deposit, PharmacySale):
+               Deposit, Visit, VisitAct, PharmacySale):
     track(_model)

@@ -23,18 +23,20 @@
 
 <div class="split">
   <div class="stack">
+    {% include "caisse/_visits.html" %}
     <section class="card">
-      <div class="card-head"><h2>Recettes par acte</h2>{% if editable %}<span class="muted small">Saisissez le <b>nombre</b> d'actes : le montant est calculé avec le tarif du jour. Entrée = ligne suivante.</span>{% endif %}</div>
+      <div class="card-head"><h2>Recettes par acte</h2>{% if editable %}<span class="muted small">Les patients enregistrés sont comptés automatiquement. Saisissez ici seulement les actes <b>en plus</b> (patients non enregistrés). Entrée = ligne suivante.</span>{% endif %}</div>
       <div class="table-wrap"><table class="data" id="acts">
-        <thead><tr><th>Acte</th><th class="hide-sm">Caisse</th><th class="num">Tarif</th><th class="num">Nombre</th><th class="num">Montant</th></tr></thead>
+        <thead><tr><th>Acte</th><th class="hide-sm">Caisse</th><th class="num">Tarif</th><th class="num" title="Patients enregistrés">Patients</th><th class="num">En plus</th><th class="num">Montant</th></tr></thead>
         <tbody>
         {% for label, entries in groups %}
-          <tr class="group"><td colspan="5">{{ label }}</td></tr>
+          <tr class="group"><td colspan="6">{{ label }}</td></tr>
           {% for e in entries %}
           <tr>
             <td>{{ e.act.name }}{% if e.note %}<div class="small muted">{{ e.note }}</div>{% endif %}</td>
             <td class="hide-sm"><span class="badge badge-fund">{% if e.act.fund == "PHARMA" %}Pharma + Écho{% else %}Entrées + Labo{% endif %}</span></td>
             <td class="num muted">{% if e.act.by_quantity %}{{ e.unit_price|num }}{% else %}montant{% endif %}</td>
+            <td class="num muted">{% if e.act.by_quantity %}{{ e.visit_qty|num }}{% else %}{{ e.visit_amount|num }}{% endif %}</td>
             <td class="num">
               {% if editable %}
                 <input type="number" min="0" step="1" inputmode="numeric" name="value"

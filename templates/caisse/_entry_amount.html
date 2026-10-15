@@ -1,1 +1,1 @@
-{% load fsu %}<span id="amt-{{ e.id }}" {% if oob %}hx-swap-oob="true"{% endif %}>{{ e.amount|num }}</span>
+{% load fsu %}<span id="amt-{{ e.id }}" {% if oob %}hx-swap-oob="true"{% endif %}>{{ e.total_amount|num }}</span>

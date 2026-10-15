@@ -22,7 +22,7 @@ from django.db.models import Prefetch, Sum
 from core.models import Facility
 
 from .models import (FUND_ENTREE, FUND_PHARMA, FUNDS, Act, ActEntry, CashSession, CommissionRule, Deposit,
-                     Expense, PharmacySale)
+                     Expense, PharmacySale, Visit, VisitAct)
 
 
 def round_fcfa(value) -> int:
@@ -128,6 +128,16 @@ def session_totals(session: CashSession) -> Totals:
         t.revenue_by_fund[e.act.fund] += e.amount
         if e.act.is_lab:
             t.lab += e.amount
+    # actes des passages patients, en plus des nombres saisis dans la grille
+    for v in session.visits.all():
+        if v.cancelled:
+            continue
+        for line in v.acts.all():
+            t.acts_amount[line.act_id] += line.amount
+            t.acts_qty[line.act_id] += line.quantity
+            t.revenue_by_fund[line.act.fund] += line.amount
+            if line.act.is_lab:
+                t.lab += line.amount
     t.pharmacy = sum(s.amount for s in session.sales.all())
     for rule in _rules_on(session.date):
         amount = round_fcfa(Decimal(t.lab) * rule.rate / 100)
@@ -148,6 +158,8 @@ def sessions_queryset(facility=None):
         Prefetch("entries", queryset=ActEntry.objects.select_related("act")),
         Prefetch("expenses", queryset=Expense.objects.select_related("category")),
         "sales",
+        Prefetch("visits", queryset=Visit.objects.filter(cancelled=False).prefetch_related(
+            Prefetch("acts", queryset=VisitAct.objects.select_related("act")))),
     )
 
 
@@ -252,3 +264,131 @@ def pharmacy_sales_total(start, end, facility=None):
     facility = facility or Facility.current()
     return PharmacySale.objects.filter(session__facility=facility, session__date__gte=start,
                                        session__date__lte=end).aggregate(s=Sum("amount"))["s"] or 0
+
+
+# --- Passages patients et stock ---------------------------------------------------
+def visit_act_totals(session: CashSession):
+    """act_id -> (nombre, montant) des passages non annulés de la journée."""
+    out = defaultdict(lambda: [0, 0])
+    for line in VisitAct.objects.filter(visit__session=session, visit__cancelled=False):
+        out[line.act_id][0] += line.quantity
+        out[line.act_id][1] += line.amount
+    return out
+
+
+def sync_consumption(session: CashSession, act: Act):
+    """Met à jour la sortie de stock du produit consommé par un acte, pour la journée :
+    (nombre saisi dans la grille + nombre des passages) × quantité par acte."""
+    from stock.models import StockMovement
+
+    entry = ActEntry.objects.filter(session=session, act=act).first()
+    if act.product_id is None:
+        if entry:
+            StockMovement.objects.filter(act_entry=entry).delete()
+        return
+    if entry is None:
+        entry = ActEntry.objects.create(session=session, act=act, quantity=0,
+                                        unit_price=act.price_on(session.date) if act.by_quantity else None)
+    used = entry.quantity + visit_act_totals(session)[act.id][0]
+    qty = used * act.product_quantity
+    if not qty:
+        StockMovement.objects.filter(act_entry=entry).delete()
+        return
+    StockMovement.objects.update_or_create(act_entry=entry, defaults={
+        "product_id": act.product_id, "date": session.date, "kind": StockMovement.CONSUMPTION,
+        "quantity": -qty, "unit_cost": act.product.purchase_price,
+        "reference": f"{act.name} – caisse du {session.date:%d/%m/%Y}",
+    })
+
+
+def product_stock(product_ids):
+    from stock.models import StockMovement
+
+    rows = (StockMovement.objects.filter(product_id__in=product_ids).values("product_id")
+            .annotate(s=Sum("quantity")))
+    return {r["product_id"]: r["s"] or 0 for r in rows}
+
+
+class VisitError(Exception):
+    pass
+
+
+def save_visit(session, patient, act_lines, product_lines, user, visit=None):
+    """Crée ou remplace un passage.
+
+    patient : dict des champs du patient ; act_lines : [(Act, nombre, montant saisi ou None)] ;
+    product_lines : [(Product, quantité)]. Lève VisitError (liste de messages) si la saisie est invalide.
+    """
+    from django.db import transaction
+
+    errors = []
+    acts = []
+    for act, qty, amount in act_lines:
+        if act.by_quantity:
+            price = act.price_on(session.date)
+            if price is None:
+                errors.append(f"Aucun tarif défini pour « {act.name} » à cette date (voir Paramètres).")
+                continue
+            acts.append((act, qty, price, qty * price))
+        else:
+            if not amount:
+                errors.append(f"Indiquez le montant de « {act.name} ».")
+                continue
+            acts.append((act, 1, None, amount))
+
+    wanted = defaultdict(int)
+    for product, qty in product_lines:
+        if not product.sale_price:
+            errors.append(f"Le prix de vente de « {product.name} » n'est pas défini (voir Stock).")
+        wanted[product] += qty
+    if session.facility.block_negative_stock and wanted:
+        stock = product_stock([p.id for p in wanted])
+        already = defaultdict(int)  # quantités déjà sur ce reçu (modification) : elles reviennent en stock
+        if visit:
+            for s in visit.sales.all():
+                already[s.product_id] += s.quantity
+        for product, qty in wanted.items():
+            available = stock.get(product.id, 0) + already[product.id]
+            if qty > available:
+                errors.append(f"Stock insuffisant pour « {product.name} » : {max(available, 0)} disponible(s). "
+                              "Si le stock réel est différent, faites un inventaire.")
+    if not acts and not wanted:
+        errors.append("Ajoutez au moins un acte ou un produit.")
+    if errors:
+        raise VisitError(errors)
+
+    with transaction.atomic():
+        touched = set()
+        if visit is None:
+            visit = Visit(session=session, created_by=user, number=Visit.next_number(session.date))
+        else:
+            touched.update(visit.acts.values_list("act_id", flat=True))
+            visit.acts.all().delete()
+            visit.sales.all().delete()
+        for field, value in patient.items():
+            setattr(visit, field, value)
+        visit.save()
+        for act, qty, price, amount in acts:
+            VisitAct.objects.create(visit=visit, act=act, quantity=qty, unit_price=price, amount=amount)
+            touched.add(act.id)
+        for product, qty in wanted.items():
+            PharmacySale.objects.create(session=session, visit=visit, product=product, quantity=qty,
+                                        unit_price=product.sale_price, description=f"Reçu {visit.number}")
+        for act in Act.objects.filter(id__in=touched).select_related("product"):
+            sync_consumption(session, act)
+    return visit
+
+
+def cancel_visit(visit, reason, user):
+    from django.db import transaction
+    from django.utils import timezone
+
+    with transaction.atomic():
+        visit.cancelled = True
+        visit.cancel_reason = reason
+        visit.cancelled_by = user
+        visit.cancelled_at = timezone.now()
+        visit.save()
+        visit.sales.all().delete()  # les produits reviennent en stock
+        for act in Act.objects.filter(visitact__visit=visit).distinct().select_related("product"):
+            sync_consumption(visit.session, act)

@@ -191,7 +191,7 @@ def user_password(request, pk):
 @require("parametres")
 def act_list(request):
     today = timezone.localdate()
-    acts = list(Act.objects.prefetch_related("prices"))
+    acts = list(Act.objects.select_related("product").prefetch_related("prices"))
     for act in acts:
         current = [p for p in act.prices.all() if p.valid_from <= today]
         act.current_price = current[0].price if current else None

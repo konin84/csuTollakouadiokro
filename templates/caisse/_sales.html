@@ -6,11 +6,11 @@
     <tbody>
     {% for s in session.sales.all %}
       <tr>
-        <td>{% if s.product %}<a href="{% url 'product_detail' s.product_id %}">{{ s.product.name }}</a>{% else %}{{ s.description|default:"Ventes pharmacie" }}{% endif %}</td>
+        <td>{% if s.product %}<a href="{% url 'product_detail' s.product_id %}">{{ s.product.name }}</a>{% else %}{{ s.description|default:"Ventes pharmacie" }}{% endif %}{% if s.visit_id %} <a class="small muted" href="{% url 'visit_receipt' session.date|date:'Y-m-d' s.visit_id %}">{{ s.description }}</a>{% endif %}</td>
         <td class="num">{% if s.product %}{{ s.quantity }}{% endif %}</td>
         <td class="num">{% if s.product %}{{ s.unit_price|num }}{% endif %}</td>
         <td class="num">{{ s.amount|num }}</td>
-        {% if can_sell %}<td class="num"><button class="btn-link" hx-post="{% url 'sale_delete' session.date|date:'Y-m-d' s.id %}" hx-target="#sales" hx-swap="outerHTML" hx-confirm="Supprimer cette vente ?">Supprimer</button></td>{% endif %}
+        {% if can_sell %}<td class="num">{% if not s.visit_id %}<button class="btn-link" hx-post="{% url 'sale_delete' session.date|date:'Y-m-d' s.id %}" hx-target="#sales" hx-swap="outerHTML" hx-confirm="Supprimer cette vente ?">Supprimer</button>{% endif %}</td>{% endif %}
       </tr>
     {% empty %}<tr><td colspan="5" class="muted">Aucune vente saisie.</td></tr>{% endfor %}
     </tbody>
@@ -24,6 +24,6 @@
     <div><label>Prix unitaire / montant (F)</label>{{ sale_form.unit_price }}</div>
     <div><button class="btn btn-accent" type="submit">Ajouter la vente</button></div>
   </form>
-  <p class="small muted" style="margin-top:6px">Choisir un produit retire la quantité du stock. Sans produit, saisissez le total des ventes (quantité 1).</p>
+  <p class="small muted" style="margin-top:6px">Choisir un produit retire la quantité du stock. Sans produit, saisissez le total des ventes (quantité 1). Les produits vendus à un patient se modifient depuis son reçu.</p>
   {% endif %}
 </section>

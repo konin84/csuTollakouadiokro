@@ -7,13 +7,14 @@ from caisse.forms import DateInput
 from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory
 from core.models import Facility
 from core.roles import ALL_ROLES, ROLE_HELP
-from stock.models import Supplier
+from stock.models import Product, Supplier
 
 
 class FacilityForm(forms.ModelForm):
     class Meta:
         model = Facility
-        fields = ["name", "short_name", "address", "phone", "opening_date", "opening_cash", "cash_tolerance"]
+        fields = ["name", "short_name", "address", "phone", "opening_date", "opening_cash", "cash_tolerance",
+                  "block_negative_stock"]
         widgets = {"opening_date": DateInput()}
 
 
@@ -85,10 +86,17 @@ class ActForm(forms.ModelForm):
 
     class Meta:
         model = Act
-        fields = ["name", "category", "fund", "entry_mode", "is_lab", "order", "active"]
+        fields = ["name", "category", "fund", "entry_mode", "is_lab", "order", "active", "product",
+                  "product_quantity"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        products = Product.objects.filter(active=True)
+        if self.instance.product_id:
+            products = products | Product.objects.filter(pk=self.instance.product_id)
+        self.fields["product"].queryset = products.distinct()
+        self.fields["product"].empty_label = "— Aucun —"
+        self.fields["product_quantity"].required = False
         if self.instance.pk:
             del self.fields["price"], self.fields["valid_from"]
             if self.instance.actentry_set.exists():
@@ -98,6 +106,8 @@ class ActForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        if not data.get("product_quantity"):
+            data["product_quantity"] = 1
         if "price" in self.fields and data.get("entry_mode") == Act.MODE_QUANTITY:
             if data.get("price") is None:
                 self.add_error("price", "Indiquez le prix de l'acte.")

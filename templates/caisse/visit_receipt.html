@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Reçu {{ visit.number }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <div><div class="crumb"><a href="{% url 'session_detail' session.date|date:'Y-m-d' %}">Journée du {{ session.date|date:"d/m/Y" }}</a></div>
+    <h1>Reçu {{ visit.number }} {% if visit.cancelled %}<span class="badge badge-ANNULEE">Annulé</span>{% endif %}</h1></div>
+  <div class="actions">
+    {% if not visit.cancelled %}<button class="btn btn-primary" type="button" onclick="window.print()">Imprimer le reçu</button>{% endif %}
+    {% if editable %}
+      <a class="btn" href="{% url 'visit_edit' session.date|date:'Y-m-d' visit.id %}">Modifier</a>
+      <a class="btn btn-accent" href="{% url 'visit_new' session.date|date:'Y-m-d' %}">+ Patient suivant</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if visit.cancelled %}<div class="alert alert-error no-print">Reçu annulé par {{ visit.cancelled_by.get_full_name|default:visit.cancelled_by.username }} le {{ visit.cancelled_at|date:"d/m/Y à H:i" }} — motif : {{ visit.cancel_reason }}. Il n'est plus compté dans la caisse.</div>{% endif %}
+
+<div class="card receipt">
+  <div class="receipt-head">
+    <strong>{{ facility.name }}</strong>
+    {% if facility.address %}<div>{{ facility.address }}</div>{% endif %}
+    {% if facility.phone %}<div>Tél. {{ facility.phone }}</div>{% endif %}
+  </div>
+  <div class="receipt-meta">
+    <div><span>Reçu n°</span><b>{{ visit.number }}</b></div>
+    <div><span>Date</span>{{ visit.created_at|date:"d/m/Y H:i" }}{% if visit.created_at|date:"Y-m-d" != session.date|date:"Y-m-d" %} (journée du {{ session.date|date:"d/m/Y" }}){% endif %}</div>
+    <div><span>Patient</span><b>{{ visit.patient_name }}</b></div>
+    {% if visit.age is not None or visit.sex %}<div><span>Âge / sexe</span>{% if visit.age is not None %}{{ visit.age }} ans{% endif %}{% if visit.sex %}{% if visit.age is not None %} · {% endif %}{{ visit.get_sex_display }}{% endif %}</div>{% endif %}
+    {% if visit.phone %}<div><span>Téléphone</span>{{ visit.phone }}</div>{% endif %}
+  </div>
+  <table class="data compact">
+    <thead><tr><th>Désignation</th><th class="num">Qté</th><th class="num">P.U.</th><th class="num">Montant</th></tr></thead>
+    <tbody>
+    {% for a in visit.acts.all %}<tr><td>{{ a.act.name }}</td><td class="num">{{ a.quantity }}</td><td class="num">{{ a.unit_price|num }}</td><td class="num">{{ a.amount|num0 }}</td></tr>{% endfor %}
+    {% for s in visit.sales.all %}<tr><td>{{ s.product.name }}</td><td class="num">{{ s.quantity }}</td><td class="num">{{ s.unit_price|num }}</td><td class="num">{{ s.amount|num0 }}</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><td colspan="3">Total payé</td><td class="num">{{ visit.total|fcfa }}</td></tr></tfoot>
+  </table>
+  {% if visit.cancelled %}<p class="neg strong" style="margin-top:8px">REÇU ANNULÉ</p>{% endif %}
+  <p class="small muted" style="margin-top:10px">Caissier : {{ visit.created_by.get_full_name|default:visit.created_by.username|default:"—" }} · Merci de votre visite.</p>
+</div>
+
+{% if editable %}
+<details class="card no-print" style="max-width:520px;margin-top:16px">
+  <summary class="btn-link" style="color:var(--bad)">Annuler ce reçu</summary>
+  <form method="post" action="{% url 'visit_cancel' session.date|date:'Y-m-d' visit.id %}" class="form" style="margin-top:10px">{% csrf_token %}
+    <p class="small muted">Le reçu n'est pas supprimé : il reste visible, barré, et n'est plus compté. Les produits reviennent en stock.</p>
+    {{ cancel_form.as_div }}
+    <button class="btn btn-danger" onclick="return confirm('Annuler le reçu {{ visit.number }} ?')">Confirmer l'annulation</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

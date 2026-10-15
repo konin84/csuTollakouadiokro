@@ -1,8 +1,10 @@
 from django import forms
+from django.db.models import Sum
 
+from core.models import Facility
 from stock.models import Product
 
-from .models import BankAccount, Deposit, Expense, ExpenseCategory, PharmacySale
+from .models import BankAccount, Deposit, Expense, ExpenseCategory, PharmacySale, Visit
 
 
 class DateInput(forms.DateInput):
@@ -40,16 +42,24 @@ class SaleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["product"].queryset = Product.objects.filter(active=True)
-        self.fields["product"].required = False
-        self.fields["product"].empty_label = "— Montant global (sans produit) —"
+        field = self.fields["product"]
+        field.queryset = Product.objects.filter(active=True).annotate(qty=Sum("movements__quantity"))
+        field.label_from_instance = lambda p: f"{p.name} — stock : {p.qty or 0}"
+        field.required = False
+        field.empty_label = "— Montant global (sans produit) —"
 
     def clean(self):
         data = super().clean()
-        if not data.get("product") and not data.get("description"):
+        product = data.get("product")
+        if not product and not data.get("description"):
             data["description"] = "Ventes pharmacie"
-        if data.get("product") and not data.get("unit_price"):
-            data["unit_price"] = data["product"].sale_price
+        if product and not data.get("unit_price"):
+            data["unit_price"] = product.sale_price
+        if product and data.get("quantity") and Facility.current().block_negative_stock:
+            available = product.qty or 0
+            if data["quantity"] > available:
+                self.add_error("quantity", f"Stock insuffisant pour « {product.name} » : {max(available, 0)} "
+                                           "disponible(s). Si le stock réel est différent, faites un inventaire.")
         return data
 
 
@@ -77,3 +87,25 @@ class CloseForm(forms.Form):
 
 class ReopenForm(forms.Form):
     reason = forms.CharField(label="Motif de la réouverture", max_length=255)
+
+
+class VisitForm(forms.ModelForm):
+    class Meta:
+        model = Visit
+        fields = ["patient_name", "phone", "sex", "age"]
+        widgets = {
+            "patient_name": forms.TextInput(attrs={"autofocus": True, "autocomplete": "off",
+                                                   "placeholder": "Ex. KOUASSI Amenan Marie"}),
+            "phone": forms.TextInput(attrs={"inputmode": "tel", "placeholder": "Facultatif"}),
+            "age": forms.NumberInput(attrs={"min": 0, "max": 130, "inputmode": "numeric"}),
+        }
+
+    def clean_patient_name(self):
+        name = " ".join(self.cleaned_data["patient_name"].split())
+        if len(name) < 2:
+            raise forms.ValidationError("Indiquez le nom du patient.")
+        return name
+
+
+class CancelVisitForm(forms.Form):
+    reason = forms.CharField(label="Motif de l'annulation", max_length=255)

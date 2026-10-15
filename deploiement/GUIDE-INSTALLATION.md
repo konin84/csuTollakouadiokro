@@ -86,6 +86,9 @@ Se connecter avec le compte administrateur, puis menu **Paramètres** :
 
 6. **Pharmacie** : enregistrer les **fournisseurs** (menu Pharmacie → Fournisseurs), compléter les prix de
    vente des produits, puis faire un **inventaire** (menu Inventaire) pour enregistrer le stock de départ.
+   La caisse refuse de vendre un produit sans stock : si la caisse démarre **avant** cet inventaire, décocher
+   provisoirement « bloquer la vente d'un produit sans stock » dans **Établissement**, puis la recocher.
+   Dans **Actes et tarifs**, un acte peut retirer un produit du stock (ex. Gant → 1 paire de gants).
 
 ---
 

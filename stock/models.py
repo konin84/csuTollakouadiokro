@@ -119,12 +119,14 @@ class StockMovement(models.Model):
     SALE = "VENTE"
     ADJUST = "INVENTAIRE"
     LOSS = "PERTE"
+    CONSUMPTION = "ACTE"
     KINDS = [
         (INITIAL, "Stock initial"),
         (RECEPTION, "Réception commande"),
         (SALE, "Vente"),
         (ADJUST, "Ajustement d'inventaire"),
         (LOSS, "Perte / périmé / casse"),
+        (CONSUMPTION, "Utilisé pour un acte"),
     ]
 
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="movements",
@@ -139,6 +141,9 @@ class StockMovement(models.Model):
                                 related_name="movement")
     order_line = models.ForeignKey(PurchaseOrderLine, null=True, blank=True, on_delete=models.CASCADE,
                                    related_name="movements")
+    # produit consommé par les actes d'une journée (Act.product) : un mouvement par acte et par jour
+    act_entry = models.OneToOneField("caisse.ActEntry", null=True, blank=True, on_delete=models.CASCADE,
+                                     related_name="consumption")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)

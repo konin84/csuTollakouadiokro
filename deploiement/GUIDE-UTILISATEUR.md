@@ -8,16 +8,25 @@ par exemple `http://192.168.1.10`, puis se connecter avec son identifiant.
 ## La journée de caisse (Caissier)
 
 1. Menu **Journée du jour** → **Ouvrir la journée du jour**.
-2. **Recettes par acte** : saisir le **nombre** d'actes (ex. 7 CPN). Le montant est calculé avec le tarif
-   du jour, et le résumé à droite se met à jour aussitôt. La touche **Entrée** passe à la ligne suivante.
-   Pour le **laboratoire**, saisir le **montant** encaissé.
-3. **Ventes pharmacie** :
+2. **Patients du jour** : à chaque patient, cliquer **+ Nouveau patient** :
+   - saisir le **nom et prénoms** (téléphone, sexe et âge si possible) ;
+   - **ajouter les actes** : le prix du tarif du jour s'affiche, le montant est calculé ;
+     pour le **laboratoire**, saisir le montant ;
+   - **ajouter les produits** vendus : le stock restant s'affiche ; une quantité supérieure au stock est refusée ;
+   - **Enregistrer** : le reçu numéroté s'affiche → **Imprimer le reçu** → **+ Patient suivant**.
+   Un reçu se **modifie** tant que la journée est ouverte. En cas d'erreur, l'**annuler** avec un motif
+   (il reste visible, barré, et n'est plus compté ; les produits reviennent en stock).
+   Certains actes retirent un produit du stock (ex. Gant), selon les Paramètres.
+3. **Recettes par acte** : les patients enregistrés y sont comptés automatiquement (colonne *Patients*).
+   Saisir dans *En plus* seulement les actes de patients **non enregistrés** (ex. 7 CPN).
+   La touche **Entrée** passe à la ligne suivante.
+4. **Ventes pharmacie** (ventes sans patient) :
    - choisir le produit et la quantité : le stock est diminué automatiquement ;
    - ou, si les ventes ne sont pas détaillées, laisser « Montant global », écrire un libellé et le total.
-4. **Dépenses** : une ligne par dépense, avec la **catégorie**, le **motif**, le montant et, si possible,
+5. **Dépenses** : une ligne par dépense, avec la **catégorie**, le **motif**, le montant et, si possible,
    la **photo du reçu** (bouton « Justificatif »). La caisse qui paie est proposée selon la catégorie
    (ristournes échographie et divers pharmacie → caisse Pharmacie + Écho).
-5. **Clôture** (le soir) : compter l'argent, saisir le montant compté et cliquer **Clôturer la journée**.
+6. **Clôture** (le soir) : compter l'argent, saisir le montant compté et cliquer **Clôturer la journée**.
    L'application compare avec le montant attendu et signale tout écart.
    Après clôture, la journée ne peut plus être modifiée par la caisse.
 

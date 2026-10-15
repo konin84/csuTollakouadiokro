@@ -22,6 +22,10 @@ class Facility(models.Model):
         "tolérance d'écart de caisse (F)", default=500,
         help_text="Au-delà, l'écart entre l'argent compté et le solde théorique est signalé.",
     )
+    block_negative_stock = models.BooleanField(
+        "bloquer la vente d'un produit sans stock", default=True,
+        help_text="Décocher seulement en attendant le premier inventaire de la pharmacie.",
+    )
 
     class Meta:
         verbose_name = "établissement"
@@ -46,6 +50,7 @@ class AuditLog(models.Model):
         ("close", "Clôture"),
         ("validate", "Validation"),
         ("reopen", "Réouverture"),
+        ("cancel", "Annulation"),
         ("receive", "Réception"),
         ("import", "Import"),
         ("login", "Connexion"),

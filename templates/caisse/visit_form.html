@@ -1,0 +1,157 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}{% if visit %}Reçu {{ visit.number }}{% else %}Nouveau patient{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <div class="crumb"><a href="{% url 'session_detail' session.date|date:'Y-m-d' %}">Journée du {{ session.date|date:"d/m/Y" }}</a></div>
+  <h1>{% if visit %}Modifier le reçu {{ visit.number }}{% else %}Nouveau patient{% endif %}</h1>
+</div></div>
+
+{% if errors %}<div class="alert alert-error"><ul class="alerts">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+<form method="post" id="visit-form">{% csrf_token %}
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <h2>Patient</h2>
+      <div class="form-grid">
+        <div class="wide"><label for="{{ form.patient_name.id_for_label }}">{{ form.patient_name.label|capfirst }}</label>{{ form.patient_name }}{{ form.patient_name.errors }}</div>
+        <div><label for="{{ form.phone.id_for_label }}">Téléphone</label>{{ form.phone }}{{ form.phone.errors }}</div>
+        <div><label for="{{ form.sex.id_for_label }}">Sexe</label>{{ form.sex }}{{ form.sex.errors }}</div>
+        <div><label for="{{ form.age.id_for_label }}">Âge (ans)</label>{{ form.age }}{{ form.age.errors }}</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Actes</h2><button type="button" class="btn btn-sm" data-add="act">+ Ajouter un acte</button></div>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Acte</th><th class="num">Prix</th><th class="num">Nombre</th><th class="num">Montant</th><th></th></tr></thead>
+        <tbody id="act-rows">
+        {% for r in rows.acts %}
+          <tr class="line act-line">
+            <td><select name="act" class="act-select"><option value="">— Choisir un acte —</option>
+              {% for label, acts in act_groups %}<optgroup label="{{ label }}">{% for a in acts %}<option value="{{ a.id }}" data-price="{{ a.price|default_if_none:'' }}" data-mode="{% if a.by_quantity %}qte{% else %}montant{% endif %}" {% if a.id == r.id %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</optgroup>{% endfor %}
+            </select></td>
+            <td class="num muted price-cell"></td>
+            <td class="num"><input type="number" name="act_qty" class="qty" min="1" step="1" inputmode="numeric" value="{{ r.qty|default:1 }}"></td>
+            <td class="num"><input type="number" name="act_amount" class="amount" min="0" step="1" inputmode="numeric" value="{{ r.amount|default_if_none:'' }}"></td>
+            <td><button type="button" class="btn-link" data-remove>Retirer</button></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      <p class="small muted" style="margin-top:6px">Le prix est celui du tarif en vigueur le {{ session.date|date:"d/m/Y" }}. Pour le laboratoire, saisissez le montant.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Produits (pharmacie)</h2><button type="button" class="btn btn-sm" data-add="product">+ Ajouter un produit</button></div>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Produit</th><th class="num">Stock</th><th class="num">Prix</th><th class="num">Quantité</th><th class="num">Montant</th><th></th></tr></thead>
+        <tbody id="product-rows">
+        {% for r in rows.products %}
+          <tr class="line product-line">
+            <td><select name="product" class="product-select"><option value="">— Choisir un produit —</option>
+              {% for p in products %}<option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock }}" data-unit="{{ p.unit }}" {% if p.id == r.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            </select></td>
+            <td class="num stock-cell"></td>
+            <td class="num muted price-cell"></td>
+            <td class="num"><input type="number" name="product_qty" class="qty" min="1" step="1" inputmode="numeric" value="{{ r.qty|default:1 }}"></td>
+            <td class="num amount-cell"></td>
+            <td><button type="button" class="btn-link" data-remove>Retirer</button></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      <p class="small muted" style="margin-top:6px">Les produits sortent du stock à l'enregistrement.{% if block_stock %} Une quantité supérieure au stock est refusée.{% endif %}</p>
+    </section>
+  </div>
+
+  <div>
+    <section class="card sticky summary">
+      <h2>Total à payer</h2>
+      <div class="net"><span>Total</span><strong id="visit-total">0</strong></div>
+      <button class="btn btn-primary" type="submit" style="width:100%">{% if visit %}Enregistrer les modifications{% else %}Enregistrer et imprimer le reçu{% endif %}</button>
+      <p class="small muted" style="margin-top:8px"><a href="{% url 'session_detail' session.date|date:'Y-m-d' %}">Annuler et revenir à la journée</a></p>
+    </section>
+  </div>
+</div>
+</form>
+
+{# Modèles de lignes vides, copiés par « Ajouter » #}
+<template id="act-template">
+  <tr class="line act-line">
+    <td><select name="act" class="act-select"><option value="">— Choisir un acte —</option>
+      {% for label, acts in act_groups %}<optgroup label="{{ label }}">{% for a in acts %}<option value="{{ a.id }}" data-price="{{ a.price|default_if_none:'' }}" data-mode="{% if a.by_quantity %}qte{% else %}montant{% endif %}">{{ a.name }}</option>{% endfor %}</optgroup>{% endfor %}
+    </select></td>
+    <td class="num muted price-cell"></td>
+    <td class="num"><input type="number" name="act_qty" class="qty" min="1" step="1" inputmode="numeric" value="1"></td>
+    <td class="num"><input type="number" name="act_amount" class="amount" min="0" step="1" inputmode="numeric" value=""></td>
+    <td><button type="button" class="btn-link" data-remove>Retirer</button></td>
+  </tr>
+</template>
+<template id="product-template">
+  <tr class="line product-line">
+    <td><select name="product" class="product-select"><option value="">— Choisir un produit —</option>
+      {% for p in products %}<option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock }}" data-unit="{{ p.unit }}">{{ p.name }}</option>{% endfor %}
+    </select></td>
+    <td class="num stock-cell"></td>
+    <td class="num muted price-cell"></td>
+    <td class="num"><input type="number" name="product_qty" class="qty" min="1" step="1" inputmode="numeric" value="1"></td>
+    <td class="num amount-cell"></td>
+    <td><button type="button" class="btn-link" data-remove>Retirer</button></td>
+  </tr>
+</template>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('visit-form');
+  var fmt = function (n) { return Math.round(n).toLocaleString('fr-FR'); };
+  function opt(row) { var s = row.querySelector('select'); return s.options[s.selectedIndex]; }
+
+  function refresh() {
+    var total = 0;
+    form.querySelectorAll('.act-line').forEach(function (row) {
+      var o = opt(row), qty = row.querySelector('[name=act_qty]'), amount = row.querySelector('[name=act_amount]');
+      var price = row.querySelector('.price-cell');
+      if (!o.value) { price.textContent = ''; amount.readOnly = true; amount.value = ''; return; }
+      if (o.dataset.mode === 'montant') {
+        // laboratoire : montant saisi, nombre = 1
+        price.textContent = 'montant'; qty.value = 1; qty.readOnly = true; amount.readOnly = false;
+        total += parseInt(amount.value || 0, 10);
+      } else {
+        qty.readOnly = false; amount.readOnly = true;
+        if (o.dataset.price === '') { price.innerHTML = '<span class="neg">pas de tarif</span>'; amount.value = ''; return; }
+        var p = parseInt(o.dataset.price, 10), q = parseInt(qty.value || 0, 10);
+        price.textContent = fmt(p); amount.value = p * q; total += p * q;
+      }
+    });
+    form.querySelectorAll('.product-line').forEach(function (row) {
+      var o = opt(row), q = parseInt(row.querySelector('[name=product_qty]').value || 0, 10);
+      var stock = row.querySelector('.stock-cell'), price = row.querySelector('.price-cell'), amount = row.querySelector('.amount-cell');
+      if (!o.value) { stock.textContent = price.textContent = amount.textContent = ''; return; }
+      var s = parseInt(o.dataset.stock, 10), p = parseInt(o.dataset.price, 10);
+      stock.innerHTML = (q > s ? '<span class="badge badge-low">' : '') + fmt(s) + ' ' + o.dataset.unit + (q > s ? '</span>' : '');
+      price.innerHTML = p ? fmt(p) : '<span class="neg">pas de prix</span>';
+      amount.textContent = fmt(p * q); total += p * q;
+    });
+    document.getElementById('visit-total').textContent = fmt(total) + ' F';
+  }
+
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  document.addEventListener('click', function (ev) {
+    var add = ev.target.closest('[data-add]');
+    if (add) {
+      var kind = add.dataset.add, tpl = document.getElementById(kind + '-template');
+      var body = document.getElementById(kind + '-rows');
+      body.appendChild(tpl.content.cloneNode(true));
+      body.lastElementChild.querySelector('select').focus();
+      refresh();
+    }
+    var rm = ev.target.closest('[data-remove]');
+    if (rm) { rm.closest('tr').remove(); refresh(); }
+  });
+  refresh();
+})();
+</script>
+{% endblock %}
