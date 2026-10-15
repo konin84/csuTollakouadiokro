@@ -1,0 +1,66 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Versements{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Caisse</div><h1>Versements bancaires {{ year }}</h1></div>
+  <div class="actions"><span class="btn-group">
+    <a class="btn btn-sm" href="?annee={{ year|add:-1 }}">← {{ year|add:-1 }}</a>
+    <a class="btn btn-sm" href="?annee={{ year|add:1 }}">{{ year|add:1 }} →</a>
+  </span></div>
+</div>
+<div class="split">
+  <div class="stack">
+    <div class="card">
+      <h2>Rapprochement par mois</h2>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Mois</th><th class="num">Net Entrées + Labo</th><th class="num">Net Pharma + Écho</th><th class="num">Recette nette</th><th class="num">Versé</th><th class="num">Différence</th></tr></thead>
+        <tbody>
+        {% for m in months %}
+          <tr>
+            <td><a href="{% url 'report_monthly' %}?mois={{ m.start|date:'Y-m' }}">{{ m.start|date:"F"|capfirst }}</a></td>
+            <td class="num">{{ m.by_fund.ENTREE|num0 }}</td>
+            <td class="num">{{ m.by_fund.PHARMA|num0 }}</td>
+            <td class="num">{{ m.net|num0 }}</td>
+            <td class="num">{{ m.deposited|num0 }}</td>
+            <td class="num">{{ m.net|sub:m.deposited|num0 }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      <p class="small muted" style="margin-top:8px">Le dernier versement d'un mois est souvent fait au début du mois suivant : une différence ponctuelle est normale, le cumul doit rester proche de l'argent en caisse.</p>
+    </div>
+    <div class="card">
+      <h2>Liste des versements</h2>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Date</th><th>Compte</th><th>Bordereau</th><th>Déposant</th><th></th><th class="num">Montant</th>{% if perms_app.versement_correction %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+        {% for d in deposits %}
+          <tr>
+            <td class="nowrap">{{ d.date|date:"d/m/Y" }}</td><td>{{ d.account }}</td><td>{{ d.reference }}</td><td>{{ d.depositor }}</td>
+            <td>{% if d.slip %}<a class="small" href="{{ d.slip.url }}" target="_blank">bordereau</a>{% endif %}{% if d.note %}<div class="small muted">{{ d.note }}</div>{% endif %}</td>
+            <td class="num">{{ d.amount|num }}</td>
+            {% if perms_app.versement_correction %}<td><a class="small" href="{% url 'deposit_edit' d.id %}">modifier</a></td>{% endif %}
+          </tr>
+        {% empty %}<tr><td colspan="7" class="muted">Aucun versement.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card kpi">
+      <div class="label">Argent en caisse aujourd'hui (théorique)</div>
+      <div class="value {% if cash_now|neg %}neg{% endif %}">{{ cash_now|fcfa }}</div>
+      <div class="sub">recettes nettes cumulées − versements</div>
+    </div>
+    {% if form %}
+    <div class="card">
+      <h2>Enregistrer un versement</h2>
+      <form method="post" action="{% url 'deposit_add' %}" enctype="multipart/form-data" class="form">{% csrf_token %}
+        {{ form.as_div }}
+        <button class="btn btn-primary" type="submit">Enregistrer</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

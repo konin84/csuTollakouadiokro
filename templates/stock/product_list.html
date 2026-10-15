@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Stock pharmacie{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Pharmacie</div><h1>Stock</h1></div>
+  <div class="actions">
+    {% if can_stock %}
+      <a class="btn" href="{% url 'stock_loss' %}">Sortie (perte, périmé)</a>
+      <a class="btn" href="{% url 'inventory' %}">Inventaire</a>
+      <a class="btn btn-primary" href="{% url 'product_new' %}">Nouveau produit</a>
+    {% endif %}
+  </div>
+</div>
+<form class="card form-grid no-print" method="get" style="margin-bottom:14px">
+  <div class="wide"><label>Recherche</label><input type="search" name="q" value="{{ q }}" placeholder="Nom ou code du produit"></div>
+  <div><label>Afficher</label><select name="voir">
+    <option value="actifs" {% if show == "actifs" %}selected{% endif %}>Produits actifs</option>
+    <option value="alerte" {% if show == "alerte" %}selected{% endif %}>Sous le seuil d'alerte</option>
+    <option value="tous" {% if show == "tous" %}selected{% endif %}>Tous</option>
+  </select></div>
+  <div><button class="btn btn-primary">Afficher</button></div>
+</form>
+<div class="card">
+  <div class="card-head"><h2>{{ products|length }} produit(s)</h2><span class="muted">Valeur du stock (prix d'achat) : <b>{{ stock_value|fcfa }}</b></span></div>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>Produit</th><th>Forme</th><th class="num">En stock</th><th class="num">Seuil</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th></th></tr></thead>
+    <tbody>
+    {% for p in products %}
+      <tr>
+        <td><a href="{% url 'product_detail' p.id %}">{{ p.name }}</a>{% if not p.active %} <span class="muted small">(inactif)</span>{% endif %}</td>
+        <td class="muted">{{ p.get_form_display }}</td>
+        <td class="num strong">{{ p.qty|default:0 }} <span class="muted small">{{ p.unit }}</span></td>
+        <td class="num">{{ p.reorder_level|num }}</td>
+        <td class="num">{{ p.purchase_price|num }}</td>
+        <td class="num">{% if p.sale_price %}{{ p.sale_price|num }}{% else %}<span class="muted small">à définir</span>{% endif %}</td>
+        <td>{% if p.reorder_level and p.qty|default:0 <= p.reorder_level %}<span class="badge badge-low">À commander</span>{% endif %}</td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="muted">Aucun produit.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Journées{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Caisse</div><h1>Journées de {{ start|date:"F Y" }}</h1></div>
+  <div class="actions">
+    <span class="btn-group">
+      <a class="btn btn-sm" href="?mois={{ prev_month|date:'Y-m' }}">← {{ prev_month|date:"M Y" }}</a>
+      <a class="btn btn-sm" href="?mois={{ next_month|date:'Y-m' }}">{{ next_month|date:"M Y" }} →</a>
+    </span>
+    {% if perms_app.saisie %}
+    <form method="post" action="{% url 'session_open' %}" style="display:flex;gap:6px">{% csrf_token %}
+      <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" style="width:auto">
+      <button class="btn btn-primary">Ouvrir / saisir</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if missing %}<div class="alert alert-info">{{ missing|length }} jour(s) sans saisie ce mois-ci : {% for d in missing|slice:":12" %}{{ d|date:"d" }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if missing|length > 12 %}…{% endif %}. Normal si le centre était fermé.</div>{% endif %}
+
+<div class="card"><div class="table-wrap"><table class="data">
+  <thead><tr>
+    <th>Date</th><th>Statut</th><th class="num">Actes</th><th class="num">Labo</th><th class="num">Pharmacie</th>
+    <th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net Entrées+Labo</th><th class="num">Net Pharma+Écho</th><th class="num">Recette nette</th><th class="num">Écart caisse</th>
+  </tr></thead>
+  <tbody>
+  {% for s, t in days %}
+    <tr>
+      <td class="nowrap"><a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"D d/m" }}</a></td>
+      <td><span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span></td>
+      <td class="num">{{ t.acts_total|num }}</td>
+      <td class="num">{{ t.lab|num }}</td>
+      <td class="num">{{ t.pharmacy|num }}</td>
+      <td class="num">{{ t.commissions_paid|num }}</td>
+      <td class="num">{{ t.expenses_total|num }}</td>
+      <td class="num {% if t.net_entree|neg %}neg{% endif %}">{{ t.net_entree|num0 }}</td>
+      <td class="num {% if t.net_pharma|neg %}neg{% endif %}">{{ t.net_pharma|num0 }}</td>
+      <td class="num strong">{{ t.net_total|num0 }}</td>
+      <td class="num {% if s.cash_gap|neg %}neg{% endif %}">{{ s.cash_gap|num }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="11" class="muted">Aucune journée saisie ce mois-ci.</td></tr>{% endfor %}
+  </tbody>
+  {% if days %}<tfoot><tr>
+    <td>Total</td><td>{{ total.sessions }} j.</td>
+    <td class="num">{{ total.acts_total|num0 }}</td><td class="num">{{ total.lab|num0 }}</td><td class="num">{{ total.pharmacy|num0 }}</td>
+    <td class="num">{{ total.commissions_paid|num0 }}</td><td class="num">{{ total.expenses_total|num0 }}</td>
+    <td class="num">{{ total.net_entree|num0 }}</td><td class="num">{{ total.net_pharma|num0 }}</td><td class="num">{{ total.net_total|num0 }}</td><td></td>
+  </tr></tfoot>{% endif %}
+</table></div></div>
+{% endblock %}

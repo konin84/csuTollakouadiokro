@@ -1,0 +1,91 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Journée du {{ session.date|date:"d/m/Y" }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb"><a href="{% url 'session_list' %}?mois={{ session.date|date:'Y-m' }}">Journées de {{ session.date|date:"F Y" }}</a></div>
+    <h1>{{ session.date|date:"l j F Y"|capfirst }} <span class="badge badge-{{ session.status }}">{{ session.get_status_display }}</span></h1>
+    <div class="status-line">
+      {% if session.imported %}<span>Importée depuis l'ancien tableau Excel</span>{% endif %}
+      {% if session.closed_by %}<span>Clôturée par {{ session.closed_by.get_full_name|default:session.closed_by.username }} le {{ session.closed_at|date:"d/m/Y à H:i" }}</span>{% endif %}
+      {% if session.validated_by %}<span>Validée par {{ session.validated_by.get_full_name|default:session.validated_by.username }} le {{ session.validated_at|date:"d/m/Y à H:i" }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    <span class="day-nav">
+      <a class="btn btn-sm" href="{% url 'session_detail' prev_day|date:'Y-m-d' %}" title="Jour précédent">← {{ prev_day|date:"d/m" }}</a>
+      <a class="btn btn-sm" href="{% url 'session_detail' next_day|date:'Y-m-d' %}" title="Jour suivant">{{ next_day|date:"d/m" }} →</a>
+    </span>
+  </div>
+</div>
+
+{% if not editable and session.is_open %}<div class="alert alert-info">Vous consultez cette journée en lecture seule.</div>{% endif %}
+
+<div class="split">
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Recettes par acte</h2>{% if editable %}<span class="muted small">Saisissez le <b>nombre</b> d'actes : le montant est calculé avec le tarif du jour. Entrée = ligne suivante.</span>{% endif %}</div>
+      <div class="table-wrap"><table class="data" id="acts">
+        <thead><tr><th>Acte</th><th class="hide-sm">Caisse</th><th class="num">Tarif</th><th class="num">Nombre</th><th class="num">Montant</th></tr></thead>
+        <tbody>
+        {% for label, entries in groups %}
+          <tr class="group"><td colspan="5">{{ label }}</td></tr>
+          {% for e in entries %}
+          <tr>
+            <td>{{ e.act.name }}{% if e.note %}<div class="small muted">{{ e.note }}</div>{% endif %}</td>
+            <td class="hide-sm"><span class="badge badge-fund">{% if e.act.fund == "PHARMA" %}Pharma + Écho{% else %}Entrées + Labo{% endif %}</span></td>
+            <td class="num muted">{% if e.act.by_quantity %}{{ e.unit_price|num }}{% else %}montant{% endif %}</td>
+            <td class="num">
+              {% if editable %}
+                <input type="number" min="0" step="1" inputmode="numeric" name="value"
+                       class="{% if e.act.by_quantity %}qty{% else %}amount{% endif %} entry-input"
+                       value="{% if e.act.by_quantity %}{{ e.quantity }}{% else %}{{ e.amount }}{% endif %}"
+                       aria-label="{{ e.act.name }}"
+                       hx-post="{% url 'entry_update' session.date|date:'Y-m-d' e.id %}" hx-trigger="change"
+                       hx-target="#summary" hx-swap="outerHTML">
+              {% else %}{% if e.act.by_quantity %}{{ e.quantity|num }}{% endif %}{% endif %}
+            </td>
+            <td class="num">{% include "caisse/_entry_amount.html" %}</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+        </tbody>
+      </table></div>
+    </section>
+
+    {% include "caisse/_sales.html" %}
+    {% include "caisse/_expenses.html" %}
+
+    {% if session.notes and not editable %}<section class="card"><h2>Observations</h2><p>{{ session.notes|linebreaksbr }}</p></section>{% endif %}
+  </div>
+  <div>{% include "caisse/_summary.html" %}</div>
+</div>
+{{ category_funds|json_script:"category-funds" }}
+{{ product_prices|json_script:"product-prices" }}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  // Entrée : passer à la saisie suivante (comme dans Excel)
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' || !ev.target.classList.contains('entry-input')) return;
+    ev.preventDefault();
+    var inputs = Array.prototype.slice.call(document.querySelectorAll('.entry-input'));
+    var i = inputs.indexOf(ev.target);
+    ev.target.dispatchEvent(new Event('change', {bubbles: true}));
+    if (inputs[i + 1]) { inputs[i + 1].focus(); inputs[i + 1].select(); }
+  });
+  document.addEventListener('focusin', function (ev) {
+    if (ev.target.classList && ev.target.classList.contains('entry-input')) ev.target.select();
+  });
+  // Catégorie de dépense -> caisse par défaut ; produit -> prix de vente
+  var funds = JSON.parse(document.getElementById('category-funds').textContent || '{}');
+  var prices = JSON.parse(document.getElementById('product-prices').textContent || '{}');
+  document.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (t.name === 'category' && t.form && funds[t.value]) t.form.elements['fund'].value = funds[t.value];
+    if (t.name === 'product' && t.form && prices[t.value] !== undefined) t.form.elements['unit_price'].value = prices[t.value];
+  });
+})();
+</script>
+{% endblock %}

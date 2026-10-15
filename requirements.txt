@@ -1,0 +1,8 @@
+Django>=5.2,<5.3
+waitress>=3.0
+whitenoise>=6.7
+openpyxl>=3.1
+dj-database-url>=2.2
+tzdata>=2024.1   # base des fuseaux horaires (indispensable sous Windows)
+# Uniquement si PostgreSQL est utilisé (DATABASE_URL) :
+# psycopg[binary]>=3.2

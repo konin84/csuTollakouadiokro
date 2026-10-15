@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Inventaire{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb">Pharmacie</div><h1>Inventaire</h1></div></div>
+<div class="alert alert-info">Comptez les produits et saisissez les quantités réelles. Les cases laissées vides ne sont pas modifiées. L'écart avec le stock théorique est enregistré comme ajustement (le premier comptage d'un produit devient son stock initial).</div>
+<form method="post" class="card">{% csrf_token %}
+  <div class="form-grid" style="margin-bottom:12px">
+    <div><label>Date de l'inventaire</label>{{ form.date }}</div>
+    <div class="wide"><label>Remarque</label>{{ form.note }}</div>
+  </div>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>Produit</th><th class="num">Stock théorique</th><th class="num">Quantité comptée</th></tr></thead>
+    <tbody>{% for p in products %}<tr><td>{{ p.name }} <span class="muted small">{{ p.unit }}</span></td><td class="num">{{ p.qty|default:0 }}</td><td class="num"><input class="qty" type="number" min="0" inputmode="numeric" name="count_{{ p.id }}"></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p style="margin-top:12px"><button class="btn btn-primary">Enregistrer l'inventaire</button></p>
+</form>
+{% endblock %}

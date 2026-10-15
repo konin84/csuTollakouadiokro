@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb"><a href="{% url 'product_list' %}">Stock</a></div><h1>{{ product.name }}</h1></div>
+  <div class="actions"><span class="badge {% if product.reorder_level and product.stock_qty <= product.reorder_level %}badge-low{% else %}badge-ok{% endif %}" style="font-size:.95rem">En stock : {{ product.stock_qty }} {{ product.unit }}</span></div>
+</div>
+<div class="split">
+  <div class="card">
+    <h2>Mouvements</h2>
+    <div class="table-wrap"><table class="data compact">
+      <thead><tr><th>Date</th><th>Type</th><th>Référence</th><th class="num">Quantité</th><th>Remarque</th></tr></thead>
+      <tbody>
+      {% for m in movements %}
+        <tr>
+          <td class="nowrap">{{ m.date|date:"d/m/Y" }}</td><td>{{ m.get_kind_display }}</td>
+          <td>{% if m.sale %}<a href="{% url 'session_detail' m.date|date:'Y-m-d' %}">{{ m.reference }}</a>{% else %}{{ m.reference }}{% endif %}</td>
+          <td class="num {% if m.quantity < 0 %}neg{% else %}pos{% endif %}">{% if m.quantity > 0 %}+{% endif %}{{ m.quantity }}</td>
+          <td class="small muted">{{ m.note }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="muted">Aucun mouvement. Faites un inventaire pour saisir le stock de départ.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h2>Fiche produit</h2>
+    {% if form %}
+    <form method="post" class="form">{% csrf_token %}{{ form.as_div }}<button class="btn btn-primary">Enregistrer</button></form>
+    {% else %}
+    <dl class="summary"><dt>Forme</dt><dd>{{ product.get_form_display }}</dd><dt>Prix de vente</dt><dd>{{ product.sale_price|fcfa }}</dd><dt>Seuil d'alerte</dt><dd>{{ product.reorder_level }}</dd></dl>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

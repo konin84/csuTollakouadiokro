@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle commande{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{% url 'order_list' %}">Commandes</a></div><h1>Nouvelle commande</h1></div></div>
+<div class="card" style="max-width:560px"><form method="post" class="form">{% csrf_token %}{{ form.as_div }}<button class="btn btn-primary">Créer et ajouter les produits</button></form>
+<p class="small muted">Les fournisseurs se créent dans Paramètres → Fournisseurs.</p></div>
+{% endblock %}

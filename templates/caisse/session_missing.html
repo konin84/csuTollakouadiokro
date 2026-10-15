@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Journée du {{ day|date:"d/m/Y" }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px">
+  <h1>{{ day|date:"l j F Y"|capfirst }}</h1>
+  <p class="muted">Cette journée n'a pas encore été ouverte.</p>
+  {% if perms_app.saisie %}
+  <form method="post" action="{% url 'session_open' %}">{% csrf_token %}
+    <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
+    <button class="btn btn-primary" type="submit">Ouvrir cette journée</button>
+    <a class="btn" href="{% url 'session_list' %}?mois={{ day|date:'Y-m' }}">Retour aux journées</a>
+  </form>
+  {% else %}<a class="btn" href="{% url 'session_list' %}">Retour aux journées</a>{% endif %}
+</div>
+{% endblock %}

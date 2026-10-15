@@ -1,0 +1,24 @@
+{% load static %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion · FSU Caisse</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="card login-card">
+    <p class="muted small" style="margin-bottom:4px">{{ facility.name|default:"FSU" }}</p>
+    <h1>FSU Caisse</h1>
+    <p class="muted">Connectez-vous pour accéder à la caisse.</p>
+    {% if form.errors %}<div class="alert alert-error">Identifiant ou mot de passe incorrect.</div>{% endif %}
+    <form method="post" class="form">{% csrf_token %}
+      <div><label for="id_username">Identifiant</label><input type="text" name="username" id="id_username" autofocus autocomplete="username" required></div>
+      <div><label for="id_password">Mot de passe</label><input type="password" name="password" id="id_password" autocomplete="current-password" required></div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-primary" style="width:100%" type="submit">Se connecter</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

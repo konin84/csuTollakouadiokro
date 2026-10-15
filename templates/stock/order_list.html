@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Commandes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Pharmacie</div><h1>Commandes</h1></div>
+  <div class="actions">{% if can_stock %}<a class="btn btn-primary" href="{% url 'order_new' %}">Nouvelle commande</a>{% endif %}</div>
+</div>
+<div class="card"><div class="table-wrap"><table class="data">
+  <thead><tr><th>N°</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th class="num">Lignes</th><th class="num">Montant</th><th>Reçue le</th></tr></thead>
+  <tbody>
+  {% for o in orders %}
+    <tr><td><a href="{% url 'order_detail' o.id %}">{{ o.number }}</a></td><td>{{ o.date|date:"d/m/Y" }}</td><td>{{ o.supplier|default:"—" }}</td>
+      <td><span class="badge badge-{{ o.status }}">{{ o.get_status_display }}</span></td><td class="num">{{ o.lines.all|length }}</td><td class="num">{{ o.total|num0 }}</td><td>{{ o.received_date|date:"d/m/Y" }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="muted">Aucune commande.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

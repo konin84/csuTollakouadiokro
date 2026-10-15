@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Journal d'activité{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Journal d'activité</h1></div>
+<form class="card form-grid no-print" method="get" style="margin-bottom:14px">
+  <div><label>Recherche</label><input type="search" name="q" value="{{ q }}" placeholder="Journée, versement, produit…"></div>
+  <div><label>Action</label><select name="action"><option value="">Toutes</option>{% for k, v in actions %}<option value="{{ k }}" {% if k == action %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Utilisateur</label><select name="utilisateur"><option value="">Tous</option>{% for u in users %}<option value="{{ u.id }}" {% if u.id|stringformat:'s' == user_id %}selected{% endif %}>{{ u.username }}</option>{% endfor %}</select></div>
+  <div><button class="btn btn-primary">Filtrer</button></div>
+</form>
+<div class="card"><div class="table-wrap"><table class="data compact">
+  <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Objet</th><th>Détails</th></tr></thead>
+  <tbody>
+  {% for e in page %}
+    <tr>
+      <td class="nowrap">{{ e.timestamp|date:"d/m/Y H:i" }}</td>
+      <td>{{ e.user.username|default:"—" }}</td>
+      <td>{{ e.get_action_display }}</td>
+      <td><span class="muted">{{ e.model }}</span><br>{{ e.object_repr }}</td>
+      <td class="small">
+        {% if e.details.modifications %}{% for k, v in e.details.modifications.items %}<div><b>{{ k }}</b> : {{ v.0|default:"—" }} → {{ v.1|default:"—" }}</div>{% endfor %}
+        {% elif e.details.valeurs %}{% if e.action == "delete" %}<span class="muted">valeurs supprimées conservées</span>{% endif %}
+        {% else %}{% for k, v in e.details.items %}<div><b>{{ k|capfirst }}</b> : {{ v }}</div>{% endfor %}
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}<tr><td colspan="5" class="muted">Aucune entrée.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% if page.has_other_pages %}<p style="margin-top:10px">
+  {% if page.has_previous %}<a class="btn btn-sm" href="?page={{ page.previous_page_number }}&q={{ q }}&action={{ action }}&utilisateur={{ user_id }}">← Plus récent</a>{% endif %}
+  <span class="muted small">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-sm" href="?page={{ page.next_page_number }}&q={{ q }}&action={{ action }}&utilisateur={{ user_id }}">Plus ancien →</a>{% endif %}
+</p>{% endif %}
+</div>
+{% endblock %}

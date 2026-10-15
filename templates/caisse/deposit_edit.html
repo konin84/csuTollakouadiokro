@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Modifier un versement{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{% url 'deposit_list' %}">Versements</a></div><h1>Modifier le versement du {{ deposit.date|date:"d/m/Y" }}</h1></div></div>
+<div class="card" style="max-width:560px">
+  <form method="post" enctype="multipart/form-data" class="form">{% csrf_token %}
+    {{ form.as_div }}
+    <button class="btn btn-primary" type="submit">Enregistrer</button>
+    <button class="btn btn-danger" type="submit" name="delete" value="1" onclick="return confirm('Supprimer ce versement ?')">Supprimer</button>
+  </form>
+  <p class="small muted" style="margin-top:8px">Toute modification est conservée dans le journal d'activité.</p>
+</div>
+{% endblock %}

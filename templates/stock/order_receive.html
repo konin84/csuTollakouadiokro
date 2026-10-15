@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Réception {{ order.number }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{% url 'order_detail' order.id %}">Commande {{ order.number }}</a></div><h1>Réception de la commande</h1></div></div>
+<div class="card" style="max-width:760px">
+  <form method="post" class="form">{% csrf_token %}
+    <div style="max-width:220px"><label>Date de réception</label><input type="date" name="date" value="{{ today|date:'Y-m-d' }}"></div>
+    <table class="data">
+      <thead><tr><th>Produit</th><th class="num">Commandé</th><th class="num">Reçu</th></tr></thead>
+      <tbody>{% for l in lines %}<tr><td>{{ l.product.name }}</td><td class="num">{{ l.quantity }}</td><td class="num"><input class="qty" type="number" min="0" name="qty_{{ l.id }}" value="{{ l.quantity }}"></td></tr>{% endfor %}</tbody>
+    </table>
+    <p style="margin-top:12px"><button class="btn btn-primary">Valider la réception (ajoute au stock)</button></p>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% load fsu %}
+<aside id="summary" class="card summary sticky" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <h2>Résumé de la journée</h2>
+  <div class="fund">
+    <h3>Caisse Entrées + Labo</h3>
+    <dl>
+      <dt>Actes (hors labo)</dt><dd>{{ totals.entries_excl_lab|num0 }}</dd>
+      <dt>Laboratoire</dt><dd>{{ totals.lab|num0 }}</dd>
+      {% for name, c in totals.commissions.items %}{% if not c.retained %}
+      <dt class="small">− {{ name }}</dt><dd class="small">{{ c.amount|num0 }}</dd>
+      {% endif %}{% endfor %}
+      <dt>− Dépenses</dt><dd>{{ totals.expenses_by_fund.ENTREE|num0 }}</dd>
+      <dt class="sum">Net</dt><dd class="sum {% if totals.net_entree|neg %}neg{% endif %}">{{ totals.net_entree|num0 }}</dd>
+    </dl>
+  </div>
+  <div class="fund">
+    <h3>Caisse Pharmacie + Écho</h3>
+    <dl>
+      <dt>Échographie</dt><dd>{{ totals.echo|num0 }}</dd>
+      <dt>Pharmacie</dt><dd>{{ totals.pharmacy|num0 }}</dd>
+      <dt>− Dépenses</dt><dd>{{ totals.expenses_by_fund.PHARMA|num0 }}</dd>
+      <dt class="sum">Net</dt><dd class="sum {% if totals.net_pharma|neg %}neg{% endif %}">{{ totals.net_pharma|num0 }}</dd>
+    </dl>
+  </div>
+  <div class="net"><span>Recette nette du jour</span><strong>{{ totals.net_total|fcfa }}</strong></div>
+  <dl class="sub">
+    <dt>Recette brute (actes + pharmacie)</dt><dd>{{ totals.gross|num0 }}</dd>
+    {% for name, c in totals.commissions.items %}{% if c.retained %}<dt>dont {{ name }} (conservé)</dt><dd>{{ c.amount|num0 }}</dd>{% endif %}{% endfor %}
+  </dl>
+
+  <div class="fund" style="margin-top:8px">
+    <h3>Argent en caisse</h3>
+    <dl>
+      <dt>Le matin</dt><dd>{{ morning_cash|num0 }}</dd>
+      <dt>+ Recette nette</dt><dd>{{ totals.net_total|num0 }}</dd>
+      <dt>− Versements du jour</dt><dd>{{ deposits_today_total|num0 }}</dd>
+      <dt class="sum">Attendu ce soir</dt><dd class="sum {% if expected_cash|neg %}neg{% endif %}">{{ expected_cash|fcfa }}</dd>
+      {% if session.counted_cash is not None %}
+      <dt>Compté à la clôture</dt><dd>{{ session.counted_cash|fcfa }}</dd>
+      <dt>Écart</dt><dd class="{% if session.cash_gap|neg %}neg{% elif session.cash_gap %}pos{% endif %}">{{ session.cash_gap|num0 }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+
+  {% for a in alerts %}<div class="alert alert-warn small">{{ a }}</div>{% endfor %}
+
+  {% if session.is_open and perms_app.cloture %}
+  <form method="post" action="{% url 'session_close' session.date|date:'Y-m-d' %}" class="form" style="margin-top:10px">{% csrf_token %}
+    <h3>Clôturer la journée</h3>
+    <div><label for="id_counted_cash">Argent compté dans la caisse (F)</label>
+      <input type="number" min="0" step="1" inputmode="numeric" name="counted_cash" id="id_counted_cash" required placeholder="{{ expected_cash }}"></div>
+    <div><label for="id_notes">Observations</label><textarea name="notes" id="id_notes" rows="2">{{ session.notes }}</textarea></div>
+    <button class="btn btn-primary" style="width:100%" type="submit" onclick="return confirm('Clôturer la journée ? Elle ne pourra plus être modifiée sans réouverture par le superviseur.')">Clôturer la journée</button>
+  </form>
+  {% endif %}
+  {% if session.status == "CLOTUREE" and perms_app.validation %}
+  <form method="post" action="{% url 'session_validate' session.date|date:'Y-m-d' %}" style="margin-top:10px">{% csrf_token %}
+    <button class="btn btn-primary" style="width:100%" type="submit">Valider la journée</button>
+  </form>
+  {% endif %}
+  {% if not session.is_open and perms_app.validation %}
+  <details style="margin-top:10px"><summary class="small muted">Rouvrir pour correction…</summary>
+    <form method="post" action="{% url 'session_reopen' session.date|date:'Y-m-d' %}" class="form" style="margin-top:8px">{% csrf_token %}
+      <div><label for="id_reason">Motif (obligatoire, conservé dans le journal)</label><input type="text" name="reason" id="id_reason" required maxlength="255"></div>
+      <button class="btn btn-danger" type="submit">Rouvrir la journée</button>
+    </form>
+  </details>
+  {% endif %}
+</aside>

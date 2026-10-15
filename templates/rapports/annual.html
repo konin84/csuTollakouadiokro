@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% load fsu l10n %}
+{% block title %}Rapport annuel {{ year }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Rapports</div><h1>Rapport annuel {{ year }}</h1></div>
+  <div class="actions">
+    <span class="btn-group"><a class="btn btn-sm" href="?annee={{ year|add:-1 }}">← {{ year|add:-1 }}</a><a class="btn btn-sm" href="?annee={{ year|add:1 }}">{{ year|add:1 }} →</a></span>
+    <a class="btn btn-sm" href="{% url 'report_annual_xlsx' %}?annee={{ year }}">Excel</a>
+    <button class="btn btn-sm" onclick="window.print()">Imprimer / PDF</button>
+  </div>
+</div>
+<div class="print-only"><h2>{{ facility.name }} – Récapitulatif annuel {{ year }}</h2></div>
+<div class="grid grid-4" style="margin-bottom:16px">
+  <div class="card kpi"><div class="label">Recette brute</div><div class="value">{{ grand.gross|fcfa }}</div><div class="sub">{{ grand.sessions }} journées</div></div>
+  <div class="card kpi"><div class="label">Recette nette</div><div class="value">{{ grand.net_total|fcfa }}</div></div>
+  <div class="card kpi"><div class="label">Dépenses</div><div class="value">{{ grand.expenses_total|fcfa }}</div></div>
+  <div class="card kpi"><div class="label">Versé en banque</div><div class="value">{{ deposits_total|fcfa }}</div></div>
+</div>
+<div class="card" style="margin-bottom:16px">
+  <h2>Par mois</h2>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>Mois</th><th class="num">Jours</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net</th><th class="num">Versé</th><th style="width:120px"></th></tr></thead>
+    <tbody>{% for r in rows %}<tr>
+      <td><a href="{% url 'report_monthly' %}?mois={{ year }}-{{ r.month|stringformat:'02d' }}">{{ r.name }}</a></td><td class="num">{{ r.t.sessions|num }}</td>
+      <td class="num">{{ r.t.entries_excl_lab|num }}</td><td class="num">{{ r.t.lab|num }}</td><td class="num">{{ r.t.echo|num }}</td><td class="num">{{ r.t.pharmacy|num }}</td>
+      <td class="num">{{ r.t.gross|num }}</td><td class="num">{{ r.t.commissions_paid|num }}</td><td class="num">{{ r.t.expenses_total|num }}</td><td class="num strong">{{ r.t.net_total|num }}</td><td class="num">{{ r.deposits|num }}</td>
+      <td><div class="hbar" title="Brut"><span style="width:{{ r.pct|unlocalize }}%"></span></div></td></tr>{% endfor %}</tbody>
+    <tfoot><tr><td>Total</td><td class="num">{{ grand.sessions }}</td><td class="num">{{ grand.entries_excl_lab|num0 }}</td><td class="num">{{ grand.lab|num0 }}</td><td class="num">{{ grand.echo|num0 }}</td><td class="num">{{ grand.pharmacy|num0 }}</td><td class="num">{{ grand.gross|num0 }}</td><td class="num">{{ grand.commissions_paid|num0 }}</td><td class="num">{{ grand.expenses_total|num0 }}</td><td class="num">{{ grand.net_total|num0 }}</td><td class="num">{{ deposits_total|num0 }}</td><td></td></tr></tfoot>
+  </table></div>
+</div>
+<div class="card" style="margin-bottom:16px">
+  <h2>Nombre d'actes par mois</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Acte</th>{% for m in month_names %}<th class="num">{{ m }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+    <tbody>{% for x in activity %}{% if x.act.by_quantity %}<tr><td>{{ x.act.name }}</td>{% for q in x.months %}<td class="num">{{ q|num }}</td>{% endfor %}<td class="num strong">{{ x.total|num0 }}</td></tr>{% endif %}{% endfor %}</tbody>
+  </table></div>
+</div>
+<div class="card">
+  <h2>Dépenses par catégorie</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Catégorie</th>{% for m in month_names %}<th class="num">{{ m }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+    <tbody>{% for cat, vals, tot in expenses %}<tr><td>{{ cat }}</td>{% for v in vals %}<td class="num">{{ v|num }}</td>{% endfor %}<td class="num strong">{{ tot|num0 }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

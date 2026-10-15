@@ -1,0 +1,87 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Rapport {{ month_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Rapports</div><h1>Rapport mensuel – {{ month_name }}</h1></div>
+  <div class="actions">
+    <span class="btn-group"><a class="btn btn-sm" href="?mois={{ prev }}{% if detail %}&vue=detail{% endif %}">← Précédent</a><a class="btn btn-sm" href="?mois={{ next }}{% if detail %}&vue=detail{% endif %}">Suivant →</a></span>
+    <span class="btn-group"><a class="btn btn-sm {% if not detail %}is-current{% endif %}" href="?mois={{ mois }}">Synthèse</a><a class="btn btn-sm {% if detail %}is-current{% endif %}" href="?mois={{ mois }}&vue=detail">Détail par acte</a></span>
+    <a class="btn btn-sm" href="{% url 'report_monthly_xlsx' %}?mois={{ mois }}">Excel</a>
+    <button class="btn btn-sm" onclick="window.print()">Imprimer / PDF</button>
+  </div>
+</div>
+<div class="print-only"><h2>{{ facility.name }} – Tableau de bord des recettes – {{ month_name }}</h2></div>
+
+<div class="grid grid-4" style="margin-bottom:16px">
+  <div class="card kpi"><div class="label">Recette brute</div><div class="value">{{ total.gross|fcfa }}</div><div class="sub">{{ total.sessions }} journée(s)</div></div>
+  <div class="card kpi"><div class="label">Commissions labo reversées</div><div class="value">{{ total.commissions_paid|fcfa }}</div></div>
+  <div class="card kpi"><div class="label">Dépenses</div><div class="value">{{ total.expenses_total|fcfa }}</div></div>
+  <div class="card kpi"><div class="label">Recette nette</div><div class="value">{{ total.net_total|fcfa }}</div><div class="sub">Entrées+Labo {{ total.net_entree|fcfa }} · Pharma+Écho {{ total.net_pharma|fcfa }}</div></div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>{% if detail %}Recettes par acte et par jour{% else %}Synthèse journalière{% endif %}</h2>
+  <div class="table-wrap"><table class="data compact">
+    {% if detail %}
+    <thead><tr><th>Date</th>{% for a in acts %}<th class="num">{{ a.name }}</th>{% endfor %}<th class="num">Pharmacie</th><th class="num">Total</th></tr></thead>
+    <tbody>{% for s, t in days %}<tr><td class="nowrap"><a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"d/m" }}</a></td>{% for a in acts %}<td class="num">{{ t.acts_amount|get:a.id|num }}</td>{% endfor %}<td class="num">{{ t.pharmacy|num }}</td><td class="num strong">{{ t.gross|num0 }}</td></tr>{% endfor %}</tbody>
+    <tfoot>
+      <tr><td>Montant</td>{% for a in acts %}<td class="num">{{ total.acts_amount|get:a.id|num0 }}</td>{% endfor %}<td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td></tr>
+      <tr><td>Nombre</td>{% for a in acts %}<td class="num">{% if a.by_quantity %}{{ total.acts_qty|get:a.id|num0 }}{% endif %}</td>{% endfor %}<td></td><td></td></tr>
+    </tfoot>
+    {% else %}
+    <thead><tr><th>Date</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net Entrées+Labo</th><th class="num">Net Pharma+Écho</th><th class="num">Net</th><th>Statut</th></tr></thead>
+    <tbody>{% for s, t in days %}<tr>
+      <td class="nowrap"><a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"D d/m" }}</a></td>
+      <td class="num">{{ t.entries_excl_lab|num }}</td><td class="num">{{ t.lab|num }}</td><td class="num">{{ t.echo|num }}</td><td class="num">{{ t.pharmacy|num }}</td>
+      <td class="num">{{ t.gross|num0 }}</td><td class="num">{{ t.commissions_paid|num }}</td><td class="num">{{ t.expenses_total|num }}</td>
+      <td class="num {% if t.net_entree|neg %}neg{% endif %}">{{ t.net_entree|num0 }}</td><td class="num {% if t.net_pharma|neg %}neg{% endif %}">{{ t.net_pharma|num0 }}</td><td class="num strong">{{ t.net_total|num0 }}</td>
+      <td><span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span></td></tr>{% empty %}<tr><td colspan="12" class="muted">Aucune journée saisie.</td></tr>{% endfor %}</tbody>
+    <tfoot><tr><td>Total</td><td class="num">{{ total.entries_excl_lab|num0 }}</td><td class="num">{{ total.lab|num0 }}</td><td class="num">{{ total.echo|num0 }}</td><td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td><td class="num">{{ total.commissions_paid|num0 }}</td><td class="num">{{ total.expenses_total|num0 }}</td><td class="num">{{ total.net_entree|num0 }}</td><td class="num">{{ total.net_pharma|num0 }}</td><td class="num">{{ total.net_total|num0 }}</td><td></td></tr></tfoot>
+    {% endif %}
+  </table></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Activité du mois</h2>
+    <table class="data compact">
+      <thead><tr><th>Acte</th><th class="num">Nombre</th><th class="num">Tarif</th><th class="num">Montant</th></tr></thead>
+      <tbody>{% for x in activity %}<tr><td>{{ x.act.name }}</td><td class="num">{% if x.act.by_quantity %}{{ x.qty|num0 }}{% endif %}</td><td class="num muted">{{ x.price|num }}</td><td class="num">{{ x.amount|num0 }}</td></tr>{% endfor %}</tbody>
+      <tfoot><tr><td>Total actes</td><td></td><td></td><td class="num">{{ total.acts_total|num0 }}</td></tr></tfoot>
+    </table>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Commissions laboratoire</h2>
+      <table class="data compact"><tbody>
+        <tr><td>Recette laboratoire</td><td class="num">{{ total.lab|num0 }}</td></tr>
+        {% for name, c in total.commissions.items %}<tr><td>{{ name }} <span class="muted small">({% if c.retained %}conservé en caisse{% else %}reversé{% endif %})</span></td><td class="num">{{ c.amount|num0 }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h2>Dépenses par catégorie</h2>
+      <table class="data compact"><tbody>
+        {% for name, amount in expenses_by_category %}<tr><td>{{ name }}</td><td class="num">{{ amount|num0 }}</td></tr>{% empty %}<tr><td class="muted">Aucune dépense.</td></tr>{% endfor %}
+      </tbody>{% if expenses_by_category %}<tfoot><tr><td>Total</td><td class="num">{{ total.expenses_total|num0 }}</td></tr></tfoot>{% endif %}</table>
+    </div>
+    <div class="card">
+      <h2>Argent en caisse et versements</h2>
+      <table class="data compact"><tbody>
+        <tr><td>Argent en caisse au 1er du mois</td><td class="num">{{ cash_start|num0 }}</td></tr>
+        <tr><td>+ Recette nette du mois</td><td class="num">{{ total.net_total|num0 }}</td></tr>
+        {% for d in deposits %}<tr><td class="muted">− Versement {{ d.account }} du {{ d.date|date:"d/m" }}{% if d.reference %} ({{ d.reference }}){% endif %}</td><td class="num">{{ d.amount|num0 }}</td></tr>{% endfor %}
+        <tr class="total"><td>Argent en caisse en fin de mois (théorique)</td><td class="num">{{ cash_end|num0 }}</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Détail des dépenses</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Date</th><th>Catégorie</th><th>Motif</th><th>Caisse</th><th class="num">Montant</th></tr></thead>
+    <tbody>{% for x in expenses %}<tr><td class="nowrap">{{ x.session.date|date:"d/m" }}</td><td>{{ x.category.name }}</td><td>{{ x.description }}</td><td class="small muted">{{ x.get_fund_display }}</td><td class="num">{{ x.amount|num0 }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Aucune dépense.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

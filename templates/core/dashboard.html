@@ -1,0 +1,90 @@
+{% extends "base.html" %}{% load fsu l10n %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb">{{ today|date:"l j F Y"|capfirst }}</div>
+    <h1>Tableau de bord</h1>
+  </div>
+  <div class="actions">
+    {% if today_session %}
+      <a class="btn btn-primary" href="{% url 'session_detail' today|date:'Y-m-d' %}">Journée du jour <span class="badge badge-{{ today_session.status }}">{{ today_session.get_status_display }}</span></a>
+    {% elif perms_app.saisie %}
+      <form method="post" action="{% url 'session_open' %}">{% csrf_token %}<input type="hidden" name="date" value="{{ today|date:'Y-m-d' }}"><button class="btn btn-primary">Ouvrir la journée du jour</button></form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:16px">
+  <div class="card kpi">
+    <div class="label">Recette nette – {{ month_name }}</div>
+    <div class="value">{{ month_total.net_total|fcfa }}</div>
+    <div class="sub">{% if prev_total.net_total %}même période le mois dernier : {{ prev_total.net_total|fcfa }}{% else %}{{ month_total.sessions }} journée(s) saisie(s){% endif %}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Recette brute du mois</div>
+    <div class="value">{{ month_total.gross|fcfa }}</div>
+    <div class="sub">dont pharmacie {{ month_total.pharmacy|fcfa }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Argent en caisse (théorique)</div>
+    <div class="value {% if cash_now|neg %}neg{% endif %}">{{ cash_now|fcfa }}</div>
+    <div class="sub">à verser à la banque</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Versé en banque ce mois</div>
+    <div class="value">{{ deposits_month|fcfa }}</div>
+    <div class="sub"><a href="{% url 'deposit_list' %}">Voir les versements</a></div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <div class="card">
+      <div class="card-head"><h2>Recettes des 12 derniers mois</h2><a class="small" href="{% url 'report_annual' %}">Rapport annuel</a></div>
+      <div class="bars" role="img" aria-label="Recette brute et nette par mois">
+        {% for t in trend %}
+        <div class="bar {% if t.current %}current{% endif %}" title="{{ t.label }} : brut {{ t.gross|fcfa }} · net {{ t.net|fcfa }}">
+          <div class="gross" style="height:{{ t.pct_gross|unlocalize }}%"></div>
+          <div class="netbar" style="height:{{ t.pct_net|unlocalize }}%"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="bar-labels">{% for t in trend %}<span>{{ t.label }}</span>{% endfor %}</div>
+      <div class="legend"><span><i style="background:#cfe0d9"></i>Recette brute</span><span><i style="background:var(--brand)"></i>Recette nette</span><span><i style="background:var(--accent)"></i>Mois en cours</span></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Ce mois-ci</h2><a class="small" href="{% url 'report_monthly' %}">Rapport mensuel</a></div>
+      <div class="table-wrap"><table class="data">
+        <tbody>
+          <tr><td>Actes (hors laboratoire)</td><td class="num">{{ month_total.entries_excl_lab|fcfa }}</td></tr>
+          <tr><td>Laboratoire</td><td class="num">{{ month_total.lab|fcfa }}</td></tr>
+          <tr><td>Échographie</td><td class="num">{{ month_total.echo|fcfa }}</td></tr>
+          <tr><td>Pharmacie</td><td class="num">{{ month_total.pharmacy|fcfa }}</td></tr>
+          <tr><td>− Commissions laboratoire reversées</td><td class="num">{{ month_total.commissions_paid|fcfa }}</td></tr>
+          <tr><td>− Dépenses</td><td class="num">{{ month_total.expenses_total|fcfa }}</td></tr>
+          <tr class="total"><td>Recette nette</td><td class="num">{{ month_total.net_total|fcfa }}</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>À surveiller</h2>
+      {% if alerts %}
+      <ul class="alerts">
+        {% for level, text, day in alerts %}<li class="alert alert-{{ level }}"><a href="{% url 'session_detail' day|date:'Y-m-d' %}">{{ text }}</a></li>{% endfor %}
+      </ul>
+      {% else %}<p class="muted">Rien à signaler.</p>{% endif %}
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Stock sous le seuil</h2><a class="small" href="{% url 'product_list' %}?voir=alerte">Tout voir</a></div>
+      {% if low_stock %}
+      <table class="data compact"><tbody>
+        {% for p in low_stock|slice:":8" %}<tr><td><a href="{% url 'product_detail' p.id %}">{{ p.name }}</a></td><td class="num"><span class="badge badge-low">{{ p.qty|default:0 }} / {{ p.reorder_level }}</span></td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}<p class="muted">Aucun produit sous son seuil d'alerte.</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
