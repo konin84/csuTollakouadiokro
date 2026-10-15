@@ -11,7 +11,7 @@ Toute la configuration propre à une installation se fait dans le fichier
     DATA_DIR=                 (dossier des données : base, justificatifs, sauvegardes)
     BACKUP_COPY_DIR=          (copie supplémentaire des sauvegardes, ex. E:\\SauvegardesFSU)
     SUPERVISEUR_MOT_DE_PASSE= (mot de passe du compte superviseur créé par init_fsu ;
-                               vide = généré et affiché à l'installation)
+                               en général saisi pendant installer.ps1, pas conservé ici)
 """
 from pathlib import Path
 import os

@@ -118,7 +118,29 @@ New-Item -ItemType Directory -Force -Path $Data | Out-Null
 Etape "Base de données"
 Invoke-Manage migrate --noinput -v 0
 Invoke-Manage collectstatic --noinput -v 0
-Invoke-Manage init_fsu --nom $Nom --demarrage "$Annee-01-01"
+
+# Compte superviseur « konin » : mot de passe saisi ici, jamais enregistré dans un fichier.
+$nbSuperviseurs = Invoke-Native $VenvPy (Join-Path $App "manage.py") shell --no-imports -c "from django.contrib.auth.models import User; print('SUPERVISEURS=%d' % User.objects.filter(groups__name='Superviseur').count())" |
+    Where-Object { $_ -match "^SUPERVISEURS=" } | Select-Object -Last 1
+$nbSuperviseurs = if ($nbSuperviseurs) { [int]($nbSuperviseurs -replace "SUPERVISEURS=", "") } else { 0 }
+if ($nbSuperviseurs -eq 0) {
+    Etape "Mot de passe du compte superviseur « konin »"
+    function Lire-MotDePasse($invite) {
+        $s = Read-Host $invite -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)
+        try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    }
+    while ($true) {
+        $mdp = Lire-MotDePasse "    Mot de passe (6 caractères minimum)"
+        if ($mdp.Length -lt 6) { Attention "Trop court."; continue }
+        if ($mdp -ne (Lire-MotDePasse "    Confirmer le mot de passe")) { Attention "Les deux saisies diffèrent."; continue }
+        break
+    }
+    $env:SUPERVISEUR_MOT_DE_PASSE = $mdp
+}
+try { Invoke-Manage init_fsu --nom $Nom --demarrage "$Annee-01-01" }
+finally { Remove-Item Env:SUPERVISEUR_MOT_DE_PASSE -ErrorAction SilentlyContinue; $mdp = $null }
 Ok "Base prête : $Data\fsu_caisse.sqlite3"
 
 $nbAdmins = Invoke-Native $VenvPy (Join-Path $App "manage.py") shell --no-imports -c "from django.contrib.auth.models import User; print('ADMINS=%d' % User.objects.filter(is_superuser=True).count())" |
