@@ -10,6 +10,8 @@ Toute la configuration propre à une installation se fait dans le fichier
     DATABASE_URL=             (vide = SQLite ; ex. postgres://user:pass@localhost/fsu)
     DATA_DIR=                 (dossier des données : base, justificatifs, sauvegardes)
     BACKUP_COPY_DIR=          (copie supplémentaire des sauvegardes, ex. E:\\SauvegardesFSU)
+    SUPERVISEUR_MOT_DE_PASSE= (mot de passe du compte superviseur créé par init_fsu ;
+                               vide = généré et affiché à l'installation)
 """
 from pathlib import Path
 import os

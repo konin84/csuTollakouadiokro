@@ -1,19 +1,28 @@
-"""Initialise une installation : rôles, établissement, actes et tarifs, règles
-de commission, catégories de dépenses, comptes bancaires.
+"""Initialise une installation : rôles, compte superviseur, établissement, actes et
+tarifs, règles de commission, catégories de dépenses, comptes bancaires.
 
 La commande peut être relancée sans risque : elle ne crée que ce qui manque.
 
     python manage.py init_fsu --nom "FSU COM KOTTIAKOFFIKRO" --demarrage 2026-01-01
+
+Compte superviseur : créé seulement si aucun utilisateur n'a le rôle Superviseur.
+Mot de passe : --mot-de-passe-superviseur, sinon SUPERVISEUR_MOT_DE_PASSE (.env),
+sinon généré et affiché une seule fois.
 """
+import os
 from datetime import date
 
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand
+from django.utils.crypto import get_random_string
 
 from caisse.models import (FUND_ENTREE, FUND_PHARMA, Act, ActPrice, BankAccount, CommissionRule,
                            ExpenseCategory)
 from core.models import Facility
-from core.roles import ALL_ROLES
+from core.roles import ALL_ROLES, SUPERVISEUR
+
+# sans caractères ambigus (l/1, O/0) : le mot de passe est recopié à la main
+PASSWORD_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
 
 # code, libellé, catégorie, caisse, mode, labo, prix
 ACTS = [
@@ -60,12 +69,18 @@ class Command(BaseCommand):
         parser.add_argument("--nom", default="FSU COM KOTTIAKOFFIKRO", help="Nom de l'établissement")
         parser.add_argument("--demarrage", default="2026-01-01",
                             help="Date à partir de laquelle les tarifs et commissions s'appliquent (AAAA-MM-JJ)")
+        parser.add_argument("--superviseur", default="superviseur",
+                            help="Identifiant du compte superviseur créé automatiquement")
+        parser.add_argument("--mot-de-passe-superviseur", dest="supervisor_password",
+                            default=os.environ.get("SUPERVISEUR_MOT_DE_PASSE", ""),
+                            help="Mot de passe de ce compte (sinon généré et affiché)")
 
     def handle(self, *args, **opts):
         start = date.fromisoformat(opts["demarrage"])
 
         for role in ALL_ROLES:
             Group.objects.get_or_create(name=role)
+        self.ensure_supervisor(opts["superviseur"], opts["supervisor_password"])
 
         facility = Facility.objects.order_by("id").first()
         if facility is None:
@@ -99,3 +114,23 @@ class Command(BaseCommand):
 
         if opts["verbosity"]:
             self.stdout.write(self.style.SUCCESS("Données de base en place."))
+
+    def ensure_supervisor(self, username, password):
+        group = Group.objects.get(name=SUPERVISEUR)
+        if group.user_set.exists():
+            return
+        if User.objects.filter(username=username).exists():
+            self.stderr.write(self.style.WARNING(
+                f"Aucun superviseur, mais l'identifiant « {username} » est déjà pris : "
+                "attribuez le rôle Superviseur à un compte dans Paramètres."))
+            return
+        generated = not password
+        if generated:
+            password = get_random_string(10, PASSWORD_CHARS)
+        user = User.objects.create_user(username, password=password)
+        user.groups.add(group)
+        # toujours affiché, même avec -v 0 : sinon le mot de passe généré serait perdu
+        self.stdout.write(self.style.SUCCESS(f"Compte superviseur créé : identifiant « {username} »"))
+        if generated:
+            self.stdout.write(self.style.WARNING(
+                f"    Mot de passe : {password}    (à noter, puis à changer à la première connexion)"))

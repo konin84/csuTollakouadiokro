@@ -1,4 +1,5 @@
 from datetime import date
+from io import StringIO
 
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
@@ -14,7 +15,7 @@ from stock.models import Product, StockMovement
 class Base(TestCase):
     @classmethod
     def setUpTestData(cls):
-        call_command("init_fsu", "--demarrage", "2026-01-01", verbosity=0)
+        call_command("init_fsu", "--demarrage", "2026-01-01", verbosity=0, stdout=StringIO())
         cls.facility = Facility.current()
         cls.cashier = User.objects.create_user("caissier", password="x")
         cls.cashier.groups.add(Group.objects.get(name="Caissier"))

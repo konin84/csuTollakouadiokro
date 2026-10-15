@@ -47,7 +47,7 @@ python manage.py test
 
 | Commande | Rôle |
 |---|---|
-| `init_fsu` | Rôles, actes et tarifs, commissions, catégories de dépenses, banques (relançable) |
+| `init_fsu [--superviseur nom] [--mot-de-passe-superviseur …]` | Rôles, compte superviseur, actes et tarifs, commissions, catégories de dépenses, banques (relançable) |
 | `import_excel <fichier> --annee 2026 [--essai] [--remplacer] [--produits]` | Import de l'ancien tableau |
 | `sauvegarder` | Zip base + justificatifs → `data/sauvegardes` (+ copie `BACKUP_COPY_DIR`) |
 | `restaurer <zip>` | Restauration (serveur arrêté) |

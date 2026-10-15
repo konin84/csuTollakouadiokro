@@ -35,6 +35,8 @@ leur navigateur. **Aucune connexion Internet n'est nécessaire** au fonctionneme
    Accepter la demande d'autorisation administrateur.
 3. Le script :
    - prépare l'environnement Python et la base de données ;
+   - crée le compte **`superviseur`** (rôle Superviseur) et **affiche son mot de passe une seule fois** :
+     le noter, puis le changer à la première connexion (menu *Mot de passe*) ;
    - demande de **créer le compte administrateur** (identifiant + mot de passe : à noter et à garder en lieu sûr) ;
    - ouvre le port réseau dans le pare-feu Windows (réseau privé uniquement) ;
    - désactive la mise en veille du PC sur secteur ;
