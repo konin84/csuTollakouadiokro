@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "caisse",
     "stock",
     "rapports",
+    "parametres",
 ]
 
 MIDDLEWARE = [

@@ -24,12 +24,13 @@
     <div class="nav-title">Pharmacie</div>
     <a class="nav {% if url == 'product_list' or url == 'product_detail' or url == 'product_new' %}active{% endif %}" href="{% url 'product_list' %}">Stock</a>
     <a class="nav {% if 'order' in url %}active{% endif %}" href="{% url 'order_list' %}">Commandes</a>
-    {% if perms_app.stock %}<a class="nav {% if url == 'inventory' %}active{% endif %}" href="{% url 'inventory' %}">Inventaire</a>{% endif %}
+    {% if perms_app.stock %}<a class="nav {% if url == 'inventory' %}active{% endif %}" href="{% url 'inventory' %}">Inventaire</a>
+    <a class="nav {% if request.resolver_match.kwargs.kind == 'fournisseurs' %}active{% endif %}" href="{% url 'param_list' 'fournisseurs' %}">Fournisseurs</a>{% endif %}
     <div class="nav-title">Rapports</div>
     <a class="nav {% if url == 'report_monthly' %}active{% endif %}" href="{% url 'report_monthly' %}">Rapport mensuel</a>
     <a class="nav {% if url == 'report_annual' %}active{% endif %}" href="{% url 'report_annual' %}">Rapport annuel</a>
     {% if perms_app.journal %}<a class="nav {% if url == 'audit_log' %}active{% endif %}" href="{% url 'audit_log' %}">Journal d'activité</a>{% endif %}
-    {% if user.is_superuser %}<a class="nav" href="{% url 'admin:index' %}">Paramètres</a>{% endif %}
+    {% if perms_app.parametres %}<a class="nav {% if 'param_' in url and request.resolver_match.kwargs.kind != 'fournisseurs' %}active{% endif %}" href="{% url 'param_index' %}">Paramètres</a>{% endif %}
     <div class="user">
       {{ user.get_full_name|default:user.username }}<br>
       <a href="{% url 'password_change' %}">Mot de passe</a> ·

@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import models
 
+from .audit import track
+
 
 class Facility(models.Model):
     """L'établissement (FSU). Une seule ligne en pratique ; le modèle permet
@@ -64,3 +66,6 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.timestamp:%d/%m/%Y %H:%M} {self.user} {self.get_action_display()} {self.object_repr}"
+
+
+track(Facility)

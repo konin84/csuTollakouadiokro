@@ -68,12 +68,14 @@ Se connecter avec le compte administrateur, puis menu **Paramètres** :
 
 1. **Établissement** : vérifier le nom, la **date de démarrage** et **l'argent en caisse au démarrage**
    (l'argent réellement présent dans la caisse le matin du premier jour d'utilisation).
-2. **Actes et prestations** : vérifier chaque tarif. Pour un changement de prix, **ajouter une nouvelle ligne
-   de tarif avec sa date d'application** (ne pas modifier l'ancienne : l'historique reste juste).
-3. **Règles de commission laboratoire** : 15 % prescripteurs, 60 % laboratoire partenaire (reversés),
-   25 % ONG AIP (conservé en caisse) sont préremplis.
+2. **Actes et tarifs** : vérifier chaque tarif. Pour un changement de prix, ouvrir l'acte et **ajouter un
+   nouveau tarif avec sa date d'application** (l'ancien reste : les journées passées gardent leur prix).
+3. **Commissions laboratoire** : 15 % prescripteurs, 60 % laboratoire partenaire (reversés),
+   25 % ONG AIP (conservé en caisse) sont préremplis. Une alerte s'affiche si le total n'est pas 100 %.
 4. **Comptes bancaires** : BOA et Banque Populaire sont préremplis ; ajouter AFG Bank si nécessaire.
-5. **Utilisateurs** : créer un compte par personne, et lui donner un ou plusieurs **groupes (rôles)** :
+5. **Utilisateurs** : créer un compte par personne et cocher un ou plusieurs **rôles**. La case
+   **Administrateur** donne tous les droits, y compris ces paramètres. Quand une personne quitte le centre,
+   **décocher « Compte actif »** (son historique est conservé) :
 
 | Rôle | Ce que la personne peut faire |
 |---|---|
@@ -82,8 +84,8 @@ Se connecter avec le compte administrateur, puis menu **Paramètres** :
 | **Pharmacie** | Gérer produits, commandes, réceptions, inventaires ; saisir les ventes |
 | **Consultation** | Lecture seule : tableau de bord et rapports (COGES, district…) |
 
-6. **Pharmacie** : compléter les prix de vente des produits, puis faire un **inventaire**
-   (menu Inventaire) pour enregistrer le stock de départ.
+6. **Pharmacie** : enregistrer les **fournisseurs** (menu Pharmacie → Fournisseurs), compléter les prix de
+   vente des produits, puis faire un **inventaire** (menu Inventaire) pour enregistrer le stock de départ.
 
 ---
 

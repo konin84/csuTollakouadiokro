@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Paramètres{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Paramètres</h1></div>
+{% if commission_notice %}<div class="alert alert-warning">{{ commission_notice }} <a href="{% url 'param_list' 'commissions' %}">Vérifier les commissions</a></div>{% endif %}
+<div class="grid grid-3 settings">
+  <a class="card" href="{% url 'param_facility' %}">
+    <h2>Établissement</h2>
+    <p class="muted">Nom, date de démarrage, argent en caisse au démarrage, tolérance d'écart.</p>
+    <span class="small">{{ facility.name }}</span>
+  </a>
+  <a class="card" href="{% url 'param_users' %}">
+    <h2>Utilisateurs</h2>
+    <p class="muted">Comptes, rôles, mots de passe.</p>
+    <span class="small">{{ nb_users }} compte(s) actif(s)</span>
+  </a>
+  <a class="card" href="{% url 'param_acts' %}">
+    <h2>Actes et tarifs</h2>
+    <p class="muted">Prestations facturées et historique de leurs prix.</p>
+    <span class="small">{{ nb_acts }} acte(s) actif(s)</span>
+  </a>
+  <a class="card" href="{% url 'param_list' 'commissions' %}">
+    <h2>Commissions laboratoire</h2>
+    <p class="muted">Part des prescripteurs, du partenaire et de l'ONG.</p>
+    <span class="small">{{ nb_rules }} règle(s) en vigueur</span>
+  </a>
+  <a class="card" href="{% url 'param_list' 'categories' %}">
+    <h2>Catégories de dépenses</h2>
+    <p class="muted">Liste proposée lors de la saisie d'une dépense.</p>
+    <span class="small">{{ nb_categories }} catégorie(s) active(s)</span>
+  </a>
+  <a class="card" href="{% url 'param_list' 'banques' %}">
+    <h2>Comptes bancaires</h2>
+    <p class="muted">Comptes recevant les versements.</p>
+    <span class="small">{{ nb_accounts }} compte(s) actif(s)</span>
+  </a>
+  <a class="card" href="{% url 'param_list' 'fournisseurs' %}">
+    <h2>Fournisseurs</h2>
+    <p class="muted">Fournisseurs de la pharmacie.</p>
+    <span class="small">{{ nb_suppliers }} fournisseur(s)</span>
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{% if obj %}{{ obj.username }}{% else %}Nouvel utilisateur{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{% url 'param_index' %}">Paramètres</a> › <a href="{% url 'param_users' %}">Utilisateurs</a></div>
+  <h1>{% if obj %}Compte « {{ obj.username }} »{% else %}Nouvel utilisateur{% endif %}</h1></div></div>
+<div class="grid grid-2" style="align-items:start">
+  <div class="card">
+    <h2>Compte et rôles</h2>
+    <form method="post" class="form" action="{% if obj %}{% url 'param_user' obj.id %}{% else %}{% url 'param_user_new' %}{% endif %}">{% csrf_token %}
+      {{ form.as_div }}
+      <button class="btn btn-primary">{% if obj %}Enregistrer{% else %}Créer le compte{% endif %}</button>
+    </form>
+  </div>
+  {% if password_form %}
+  <div class="card">
+    <h2>Changer le mot de passe</h2>
+    <p class="muted small">Pour une personne qui a oublié son mot de passe. Communiquez-lui le nouveau : elle pourra le changer ensuite dans « Mot de passe ».</p>
+    <form method="post" class="form" action="{% url 'param_user_password' obj.id %}">{% csrf_token %}
+      {{ password_form.as_div }}
+      <button class="btn">Changer le mot de passe</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

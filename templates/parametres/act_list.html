@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Actes et tarifs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb"><a href="{% url 'param_index' %}">Paramètres</a></div><h1>Actes et tarifs</h1></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'param_act_new' %}">Nouvel acte</a></div>
+</div>
+<div class="card"><div class="table-wrap"><table class="data">
+  <thead><tr><th>Acte</th><th>Catégorie</th><th>Caisse</th><th class="num">Tarif actuel</th><th>Prochain tarif</th><th></th></tr></thead>
+  <tbody>
+  {% for a in acts %}
+    <tr>
+      <td><a href="{% url 'param_act' a.id %}">{{ a.name }}</a></td>
+      <td class="muted">{{ a.get_category_display }}</td>
+      <td class="muted">{{ a.get_fund_display }}</td>
+      <td class="num">{% if a.by_quantity %}{{ a.current_price|fcfa }}{% else %}<span class="muted small">montant saisi</span>{% endif %}</td>
+      <td class="small">{% if a.next_price %}{{ a.next_price.price|fcfa }} dès le {{ a.next_price.valid_from|date:"d/m/Y" }}{% endif %}</td>
+      <td>{% if not a.active %}<span class="badge badge-ANNULEE">Inactif</span>{% endif %}</td>
+    </tr>
+  {% empty %}<tr><td colspan="6" class="muted">Aucun acte.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

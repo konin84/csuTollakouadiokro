@@ -32,6 +32,7 @@ RIGHTS = {
     "stock": {PHARMACIE, SUPERVISEUR},
     "rapports": {CAISSIER, SUPERVISEUR, PHARMACIE, CONSULTATION},
     "journal": {SUPERVISEUR},
+    "parametres": set(),  # administrateurs uniquement
 }
 
 

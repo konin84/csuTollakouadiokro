@@ -61,6 +61,7 @@ core/          établissement, rôles, journal d'activité, tableau de bord, sau
 caisse/        actes, tarifs, commissions, journées, dépenses, versements ; services.py = calculs
 stock/         produits, commandes, mouvements de stock (ventes synchronisées par signal)
 rapports/      rapports mensuel/annuel et exports Excel
+parametres/    pages de paramètres (établissement, utilisateurs, tarifs, commissions…) ; /admin/ reste pour le dépannage
 templates/     gabarits HTML (français)
 static/        CSS et htmx.min.js (local)
 deploiement/   kit Windows (installer.bat/.ps1, mise à jour, désinstallation, wheels hors ligne) et guides

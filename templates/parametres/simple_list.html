@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ conf.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>{% if kind != "fournisseurs" %}<div class="crumb"><a href="{% url 'param_index' %}">Paramètres</a></div>{% else %}<div class="crumb">Pharmacie</div>{% endif %}<h1>{{ conf.title }}</h1></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'param_new' kind %}">{{ conf.new }}</a></div>
+</div>
+{% if notice %}<div class="alert alert-warning">{{ notice }}</div>{% endif %}
+<p class="muted">{{ conf.intro }}</p>
+<div class="card"><div class="table-wrap"><table class="data">
+  <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for obj, cells in rows %}
+    <tr>{% for c in cells %}<td>{% if forloop.first %}<a href="{% url 'param_edit' kind obj.pk %}">{{ c }}</a>{% else %}{{ c }}{% endif %}</td>{% endfor %}</tr>
+  {% empty %}<tr><td colspan="{{ headers|length }}" class="muted">Aucun élément.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

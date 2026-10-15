@@ -4,6 +4,7 @@ from django.urls import path, re_path
 
 from caisse import views as caisse
 from core import views as core
+from parametres import views as parametres
 from rapports import views as rapports
 from stock import views as stock
 
@@ -56,5 +57,23 @@ urlpatterns = [
     path("rapports/annuel/", rapports.annual, name="report_annual"),
     path("rapports/annuel/excel/", rapports.annual_xlsx, name="report_annual_xlsx"),
 
+    # Paramètres (administrateurs ; fournisseurs : pharmacie)
+    path("parametres/", parametres.index, name="param_index"),
+    path("parametres/etablissement/", parametres.facility, name="param_facility"),
+    path("parametres/utilisateurs/", parametres.user_list, name="param_users"),
+    path("parametres/utilisateurs/nouveau/", parametres.user_edit, name="param_user_new"),
+    path("parametres/utilisateurs/<int:pk>/", parametres.user_edit, name="param_user"),
+    path("parametres/utilisateurs/<int:pk>/mot-de-passe/", parametres.user_password, name="param_user_password"),
+    path("parametres/actes/", parametres.act_list, name="param_acts"),
+    path("parametres/actes/nouveau/", parametres.act_edit, name="param_act_new"),
+    path("parametres/actes/<int:pk>/", parametres.act_edit, name="param_act"),
+    path("parametres/actes/<int:pk>/tarif/", parametres.act_price_add, name="param_act_price"),
+    path("parametres/actes/<int:pk>/tarif/<int:price_id>/supprimer/", parametres.act_price_delete,
+         name="param_act_price_delete"),
+    path("parametres/<slug:kind>/", parametres.simple_list, name="param_list"),
+    path("parametres/<slug:kind>/nouveau/", parametres.simple_edit, name="param_new"),
+    path("parametres/<slug:kind>/<int:pk>/", parametres.simple_edit, name="param_edit"),
+
+    # Administration Django : réservée aux développeurs (dépannage)
     path("admin/", admin.site.urls),
 ]

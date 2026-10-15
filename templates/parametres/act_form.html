@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}{% if obj %}{{ obj.name }}{% else %}Nouvel acte{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="crumb"><a href="{% url 'param_index' %}">Paramètres</a> › <a href="{% url 'param_acts' %}">Actes et tarifs</a></div>
+  <h1>{% if obj %}{{ obj.name }}{% else %}Nouvel acte{% endif %}</h1></div></div>
+<div class="grid grid-2" style="align-items:start">
+  <div class="card">
+    <h2>Acte</h2>
+    <form method="post" class="form" action="{% if obj %}{% url 'param_act' obj.id %}{% else %}{% url 'param_act_new' %}{% endif %}">{% csrf_token %}
+      {{ form.as_div }}
+      <button class="btn btn-primary">{% if obj %}Enregistrer{% else %}Créer l'acte{% endif %}</button>
+    </form>
+  </div>
+  {% if obj and obj.by_quantity %}
+  <div class="card">
+    <h2>Tarifs</h2>
+    <p class="muted small">Pour un changement de prix, ajoutez un nouveau tarif avec sa date d'application. Les journées passées gardent le prix qui était en vigueur.</p>
+    <div class="table-wrap"><table class="data compact" style="margin-bottom:14px">
+      <thead><tr><th>À partir du</th><th class="num">Prix</th><th></th></tr></thead>
+      <tbody>
+      {% for p in prices %}
+        <tr>
+          <td>{{ p.valid_from|date:"d/m/Y" }}</td>
+          <td class="num">{{ p.price|fcfa }}</td>
+          <td>{% if p.valid_from > today %}<form method="post" action="{% url 'param_act_price_delete' obj.id p.id %}">{% csrf_token %}<button class="btn-link" onclick="return confirm('Supprimer ce tarif à venir ?')">Supprimer</button></form>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="3" class="muted">Aucun tarif : cet acte compte 0 F.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <h3>Nouveau tarif</h3>
+    <form method="post" class="form" action="{% url 'param_act_price' obj.id %}">{% csrf_token %}
+      {{ price_form.as_div }}
+      <button class="btn btn-primary">Ajouter le tarif</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

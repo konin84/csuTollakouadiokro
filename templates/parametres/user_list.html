@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Utilisateurs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb"><a href="{% url 'param_index' %}">Paramètres</a></div><h1>Utilisateurs</h1></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'param_user_new' %}">Nouvel utilisateur</a></div>
+</div>
+<div class="card"><div class="table-wrap"><table class="data">
+  <thead><tr><th>Identifiant</th><th>Nom</th><th>Rôles</th><th>Dernière connexion</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td><a href="{% url 'param_user' u.id %}">{{ u.username }}</a></td>
+      <td>{{ u.get_full_name|default:"—" }}</td>
+      <td>{% if u.is_superuser %}<span class="badge badge-ok">Administrateur</span> {% endif %}{% for g in u.groups.all %}<span class="badge badge-fund">{{ g.name }}</span> {% empty %}{% if not u.is_superuser %}<span class="badge badge-low">Aucun rôle</span>{% endif %}{% endfor %}</td>
+      <td class="muted">{{ u.last_login|date:"d/m/Y H:i"|default:"jamais" }}</td>
+      <td>{% if not u.is_active %}<span class="badge badge-ANNULEE">Désactivé</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+<p class="small muted" style="margin-top:8px">Un compte sans rôle ni droit d'administrateur ne peut rien saisir. Pour bloquer une personne qui quitte le centre, désactivez son compte : son historique reste visible.</p>
+{% endblock %}
