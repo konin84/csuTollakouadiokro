@@ -30,6 +30,7 @@ class OrderLineForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["product"].queryset = Product.objects.filter(active=True)
+        self.fields["unit_cost"].required = False  # vide = dernier prix d'achat (voir order_detail)
 
 
 class LossForm(forms.Form):
