@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import HttpResponse, JsonResponse
@@ -17,8 +18,9 @@ from core.roles import can, require
 from stock.models import Product
 
 from . import services
-from .forms import CancelVisitForm, CloseForm, DepositForm, ExpenseForm, ReopenForm, SaleForm, VisitForm
-from .models import (FUND_ENTREE, FUND_LABELS, FUNDS, Act, ActEntry, CashSession, Deposit, Expense, ExpenseCategory,
+from .forms import (CancelVisitForm, CloseForm, DepositForm, ExpenseForm, ReopenForm, ValidateForm,
+                    VisitForm)
+from .models import (FUND_ENTREE, FUND_LABELS, FUNDS, Act, CashSession, Deposit, Expense, ExpenseCategory,
                      PharmacySale, Visit)
 
 
@@ -43,10 +45,13 @@ def _editable(request, session, right="saisie"):
     return session.is_open and can(request.user, right)
 
 
+VISITS_PER_PAGE = 20
+
+
 def _session_context(request, session):
     totals = services.session_totals(session)
     morning = services.cash_balance(session.date, include_day=False)
-    deposits_today = list(Deposit.objects.filter(facility=session.facility, date=session.date)
+    deposits_today = list(Deposit.objects.filter(facility=session.facility, date=session.date, from_till=True)
                           .select_related("account"))
     dep_total = sum(d.amount for d in deposits_today)
     expected = morning + totals.net_total - dep_total
@@ -56,11 +61,15 @@ def _session_context(request, session):
     groups = []
     for e in entries:
         e.visit_qty, e.visit_amount = from_visits.get(e.act_id, (0, 0))
+        # quantités de la grille : journées importées d'Excel ou saisies avant les reçus patients
+        e.total_qty = e.quantity + e.visit_qty
         e.total_amount = e.amount + e.visit_amount
         label = e.act.get_category_display()
-        if not groups or groups[-1][0] != label:
-            groups.append((label, []))
-        groups[-1][1].append(e)
+        if not groups or groups[-1]["label"] != label:
+            groups.append({"label": label, "code": e.act.category, "entries": [], "total": 0, "count": 0})
+        groups[-1]["entries"].append(e)
+        groups[-1]["total"] += e.total_amount
+        groups[-1]["count"] += e.total_qty if e.act.by_quantity else (1 if e.total_amount else 0)
     categories = list(ExpenseCategory.objects.filter(active=True))
     visits = list(Visit.objects.filter(session=session).select_related("created_by")
                   .prefetch_related("acts__act", "sales__product"))
@@ -76,14 +85,13 @@ def _session_context(request, session):
         "session": session,
         "totals": totals,
         "groups": groups,
-        "visits": visits,
+        "visits_page": Paginator(visits[::-1], VISITS_PER_PAGE).get_page(request.GET.get("patients")),
         "by_cashier": sorted(by_cashier.values(), key=lambda r: r["name"]),
         "editable": _editable(request, session),
         "can_sell": session.is_open and can(request.user, "ventes"),
+        "can_spend": session.is_open and can(request.user, "depenses"),
         "expense_form": ExpenseForm(initial={"fund": FUND_ENTREE}),
-        "sale_form": SaleForm(initial={"quantity": 1}),
         "category_funds": {c.id: c.default_fund for c in categories},
-        "product_prices": dict(Product.objects.filter(active=True).values_list("id", "sale_price")),
         "fund_labels": FUND_LABELS,
         "morning_cash": morning,
         "deposits_today": deposits_today,
@@ -99,6 +107,7 @@ def _session_context(request, session):
 
 
 # ---------------------------------------------------------------------------
+@require("caisse")
 def session_list(request):
     today = timezone.localdate()
     try:
@@ -118,7 +127,7 @@ def session_list(request):
 
 
 @require_POST
-@require("saisie")
+@require("ouverture")
 def session_open(request):
     day = _parse_day(request.POST.get("date"))
     if day > timezone.localdate():
@@ -133,6 +142,7 @@ def session_open(request):
     return redirect("session_detail", day=f"{day:%Y-%m-%d}")
 
 
+@require("caisse")
 def session_today(request):
     today = timezone.localdate()
     session = CashSession.objects.filter(facility=Facility.current(), date=today).first()
@@ -141,47 +151,16 @@ def session_today(request):
     return render(request, "caisse/session_missing.html", {"day": today})
 
 
+@require("caisse")
 def session_detail(request, day):
     d = _parse_day(day)
     session = CashSession.objects.filter(facility=Facility.current(), date=d).first()
     if session is None:
         return render(request, "caisse/session_missing.html", {"day": d})
-    if session.is_open and can(request.user, "saisie"):
+    if session.is_open and can(request.user, "ouverture"):
         services.ensure_entries(session)
     session = _get_session(day)
     return render(request, "caisse/session_detail.html", _session_context(request, session))
-
-
-def _summary_response(request, session, extra_html=""):
-    session = _get_session(f"{session.date:%Y-%m-%d}")
-    ctx = _session_context(request, session)
-    html = render_to_string("caisse/_summary.html", ctx, request=request)
-    return HttpResponse(extra_html + html)
-
-
-@require_POST
-def entry_update(request, day, entry_id):
-    session = _get_session(day)
-    if not _editable(request, session):
-        raise PermissionDenied
-    entry = get_object_or_404(ActEntry, pk=entry_id, session=session)
-    raw = (request.POST.get("value") or "0").replace(" ", "").replace(" ", "")
-    try:
-        value = max(0, int(float(raw)))
-    except ValueError:
-        value = 0
-    if entry.act.by_quantity:
-        entry.quantity = value
-        entry.manual_amount = False
-        entry.unit_price = entry.unit_price or entry.act.price_on(session.date) or 0
-    else:
-        entry.amount = value
-        entry.manual_amount = True
-    entry.save()
-    services.sync_consumption(session, entry.act)
-    entry.total_amount = entry.amount + services.visit_act_totals(session)[entry.act_id][1]
-    cell = render_to_string("caisse/_entry_amount.html", {"e": entry, "oob": True}, request=request)
-    return _summary_response(request, session, cell)
 
 
 def _section_response(request, session, template):
@@ -195,7 +174,7 @@ def _section_response(request, session, template):
 @require_POST
 def expense_add(request, day):
     session = _get_session(day)
-    if not _editable(request, session):
+    if not _editable(request, session, "depenses"):
         raise PermissionDenied
     form = ExpenseForm(request.POST, request.FILES)
     if form.is_valid():
@@ -212,28 +191,10 @@ def expense_add(request, day):
 @require_POST
 def expense_delete(request, day, pk):
     session = _get_session(day)
-    if not _editable(request, session):
+    if not _editable(request, session, "depenses"):
         raise PermissionDenied
     get_object_or_404(Expense, pk=pk, session=session).delete()
     return _section_response(request, session, "caisse/_expenses.html")
-
-
-@require_POST
-def sale_add(request, day):
-    session = _get_session(day)
-    if not (session.is_open and can(request.user, "ventes")):
-        raise PermissionDenied
-    form = SaleForm(request.POST)
-    if form.is_valid():
-        s = form.save(commit=False)
-        s.session = session
-        s.unit_price = form.cleaned_data["unit_price"] or 0
-        s.description = form.cleaned_data.get("description") or ""
-        s.save()
-        return _section_response(request, session, "caisse/_sales.html")
-    ctx = _session_context(request, session)
-    ctx["sale_form"] = form
-    return HttpResponse(render_to_string("caisse/_sales.html", ctx, request=request))
 
 
 @require_POST
@@ -272,7 +233,7 @@ def session_close(request, day):
     if abs(gap) > session.facility.cash_tolerance:
         messages.warning(request, f"Journée clôturée avec un écart de caisse de {gap:+,} F.".replace(",", " "))
     else:
-        messages.success(request, "Journée clôturée. Elle doit maintenant être validée par le superviseur.")
+        messages.success(request, "Journée clôturée. Recevez l'argent du caissier et validez la journée.")
     return redirect("session_detail", day=day)
 
 
@@ -283,13 +244,25 @@ def session_validate(request, day):
     if session.status != CashSession.CLOSED:
         messages.error(request, "Seule une journée clôturée peut être validée.")
         return redirect("session_detail", day=day)
+    form = ValidateForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Indiquez l'argent reçu du caissier.")
+        return redirect("session_detail", day=day)
     session.status = CashSession.VALIDATED
     session.validated_by = request.user
     session.validated_at = timezone.now()
+    session.handed_over = form.cleaned_data["handed_over"]
     session._audit_skip = True
     session.save()
-    log("validate", session)
-    messages.success(request, "Journée validée et verrouillée.")
+    log("validate", session, {"argent compté": session.counted_cash, "argent reçu": session.handed_over,
+                              "écart de remise": session.handover_gap})
+    gap = session.handover_gap or 0
+    if gap:
+        messages.warning(request, f"Journée validée. L'argent reçu diffère de {gap:+,} F de l'argent compté "
+                                  "à la clôture.".replace(",", " "))
+    else:
+        messages.success(request, f"Journée validée : {session.handed_over:,} F reçus du caissier."
+                         .replace(",", " "))
     return redirect("session_detail", day=day)
 
 
@@ -305,6 +278,7 @@ def session_reopen(request, day):
     session.status = CashSession.OPEN
     session.validated_by = None
     session.validated_at = None
+    # handed_over est conservé : l'argent est déjà chez le superviseur ; la nouvelle validation le remplace
     session._audit_skip = True
     session.save()
     log("reopen", session, {"motif": form.cleaned_data["reason"], "statut précédent": previous})
@@ -313,6 +287,7 @@ def session_reopen(request, day):
 
 
 # ---------------------------------------------------------------------------
+@require("banque")
 def deposit_list(request):
     today = timezone.localdate()
     try:
@@ -330,11 +305,12 @@ def deposit_list(request):
             break
         total, _ = services.period_totals(start, end)
         dep = services.deposits_total(start, end)
-        months.append({"start": start, "net": total.net_total, "deposited": dep,
-                       "by_fund": total.net_by_fund()})
+        months.append({"start": start, "net": total.net_total, "handed_over": services.handovers_total(start, end),
+                       "deposited": dep, "by_fund": total.net_by_fund()})
     return render(request, "caisse/deposit_list.html", {
         "deposits": deposits, "form": form, "year": year, "months": months,
-        "cash_now": services.cash_balance(today), "today": today,
+        "cash_now": services.cash_balance(today), "supervisor_cash": services.supervisor_balance(today),
+        "today": today,
         "fund_labels": FUND_LABELS, "funds": FUNDS,
     })
 
@@ -392,7 +368,9 @@ def _visit_choices(session, visit=None):
             groups.append((label, []))
         groups[-1][1].append({"id": a.id, "name": a.name, "by_quantity": a.by_quantity,
                               "price": a.price_on(session.date)})
-    products = [{"id": p.id, "name": p.name, "unit": p.unit, "price": p.sale_price, "stock": p.qty or 0}
+    products = [{"id": p.id, "name": p.name, "unit": p.unit, "price": p.sale_price, "stock": p.qty or 0,
+                 "pack_unit": p.pack_unit if p.has_pack else "", "pack_size": p.pack_size or 1,
+                 "pack_price": p.pack_price}
                 for p in Product.objects.filter(active=True).annotate(qty=Sum("movements__quantity"))]
     return groups, products
 
@@ -401,7 +379,7 @@ def _parse_lines(request):
     """Lignes du formulaire : act / act_qty / act_amount et product / product_qty (listes parallèles)."""
     post = request.POST
     act_ids, act_qtys, act_amounts = post.getlist("act"), post.getlist("act_qty"), post.getlist("act_amount")
-    prod_ids, prod_qtys = post.getlist("product"), post.getlist("product_qty")
+    prod_ids, prod_qtys, prod_units = post.getlist("product"), post.getlist("product_qty"), post.getlist("product_unit")
     acts = Act.objects.in_bulk([i for i in (_int(x) for x in act_ids) if i])
     products = Product.objects.in_bulk([i for i in (_int(x) for x in prod_ids) if i])
     act_lines, product_lines, errors = [], [], []
@@ -422,21 +400,26 @@ def _parse_lines(request):
         if product is None:
             continue
         qty = _int(prod_qtys[i] if i < len(prod_qtys) else 1, 0)
-        rows["products"].append({"id": product.id, "qty": qty})
+        pack = i < len(prod_units) and prod_units[i] == "pack"
+        rows["products"].append({"id": product.id, "qty": qty, "unit": "pack" if pack else "unite"})
         if qty < 1:
             errors.append(f"Quantité invalide pour « {product.name} ».")
             continue
-        product_lines.append((product, qty))
+        product_lines.append((product, qty, pack))
     return act_lines, product_lines, rows, errors
 
 
-def _visit_form(request, session, visit):
-    form = VisitForm(request.POST or None, instance=visit)
+def _visit_form(request, session, visit, pharmacy=False):
+    """Reçu d'un patient (actes et produits) ou, avec pharmacy=True, vente de médicaments seule."""
+    form = VisitForm(request.POST or None, instance=visit, pharmacy=pharmacy)
     errors = []
     if request.method == "POST":
         act_lines, product_lines, rows, errors = _parse_lines(request)
+        if pharmacy:
+            act_lines = []
         if form.is_valid() and not errors:
             patient = {f: form.cleaned_data[f] for f in VisitForm.Meta.fields}
+            patient["kind"] = Visit.PHARMACY if pharmacy else Visit.PATIENT
             try:
                 saved = services.save_visit(session, patient, act_lines, product_lines, request.user, visit=visit)
             except services.VisitError as e:
@@ -446,13 +429,16 @@ def _visit_form(request, session, visit):
                 return redirect("visit_receipt", day=f"{session.date:%Y-%m-%d}", pk=saved.pk)
     elif visit:
         rows = {"acts": [{"id": a.act_id, "qty": a.quantity, "amount": a.amount} for a in visit.acts.all()],
-                "products": [{"id": s.product_id, "qty": s.quantity} for s in visit.sales.all()]}
+                "products": [{"id": s.product_id, "qty": s.quantity, "unit": "pack" if s.pack else "unite"}
+                             for s in visit.sales.all()]}
+    elif pharmacy:
+        rows = {"acts": [], "products": [{"id": "", "qty": 1, "unit": "unite"}]}
     else:
         rows = {"acts": [{"id": "", "qty": 1, "amount": ""}], "products": []}
     act_groups, products = _visit_choices(session, visit)
     return render(request, "caisse/visit_form.html", {
         "session": session, "visit": visit, "form": form, "errors": errors, "rows": rows,
-        "act_groups": act_groups, "products": products,
+        "act_groups": act_groups, "products": products, "pharmacy": pharmacy,
         "block_stock": session.facility.block_negative_stock,
     })
 
@@ -464,21 +450,33 @@ def visit_new(request, day):
     return _visit_form(request, session, None)
 
 
+def pharmacy_sale_new(request, day):
+    """Client venu seulement pour des médicaments : reçu sans actes."""
+    session = _get_session(day)
+    if not _editable(request, session, "ventes"):
+        raise PermissionDenied
+    return _visit_form(request, session, None, pharmacy=True)
+
+
 def visit_edit(request, day, pk):
     session = _get_session(day)
     visit = get_object_or_404(Visit, pk=pk, session=session)
-    if not _editable(request, session) or visit.cancelled:
+    right = "ventes" if visit.is_pharmacy else "saisie"
+    if not _editable(request, session, right) or visit.cancelled:
         raise PermissionDenied
-    return _visit_form(request, session, visit)
+    return _visit_form(request, session, visit, pharmacy=visit.is_pharmacy)
 
 
+@require("caisse")
 def visit_receipt(request, day, pk):
     session = _get_session(day)
     visit = get_object_or_404(Visit.objects.select_related("created_by", "cancelled_by")
                               .prefetch_related("acts__act", "sales__product"), pk=pk, session=session)
+    right = "ventes" if visit.is_pharmacy else "saisie"
     return render(request, "caisse/visit_receipt.html", {
-        "session": session, "visit": visit, "editable": _editable(request, session) and not visit.cancelled,
-        "cancel_form": CancelVisitForm(),
+        "session": session, "visit": visit, "cancel_form": CancelVisitForm(),
+        "editable": _editable(request, session, right) and not visit.cancelled,     # modifier, reçu suivant
+        "can_cancel": _editable(request, session, "annulation") and not visit.cancelled,
     })
 
 
@@ -486,7 +484,7 @@ def visit_receipt(request, day, pk):
 def visit_cancel(request, day, pk):
     session = _get_session(day)
     visit = get_object_or_404(Visit, pk=pk, session=session, cancelled=False)
-    if not _editable(request, session):
+    if not _editable(request, session, "annulation"):
         raise PermissionDenied
     form = CancelVisitForm(request.POST)
     if not form.is_valid():

@@ -3,8 +3,8 @@ from django.contrib import admin
 from .models import (Act, ActEntry, ActPrice, BankAccount, CashSession, CommissionRule, Deposit, Expense,
                      ExpenseCategory, PharmacySale)
 
-admin.site.site_header = "FSU Caisse – Paramètres"
-admin.site.site_title = "FSU Caisse"
+admin.site.site_header = "CSU Caisse – Paramètres"
+admin.site.site_title = "CSU Caisse"
 admin.site.index_title = "Paramètres de l'application"
 
 

@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% load fsu %}
+{% block title %}Stock {{ month_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="crumb">Rapports</div><h1>Rapport de stock – {{ month_name }}</h1></div>
+  <div class="actions">
+    <span class="btn-group"><a class="btn btn-sm" href="?mois={{ prev }}">← Précédent</a><a class="btn btn-sm" href="?mois={{ next }}">Suivant →</a></span>
+    <a class="btn btn-sm" href="{% url 'report_stock_xlsx' %}?mois={{ mois }}">Excel</a>
+    <button class="btn btn-sm" onclick="window.print()">Imprimer / PDF</button>
+  </div>
+</div>
+<div class="print-only"><h2>{{ facility.name }} – Rapport de stock de la pharmacie – {{ month_name }}</h2></div>
+
+<div class="grid grid-4" style="margin-bottom:16px">
+  <div class="card kpi"><div class="label">Valeur du stock en fin de mois</div><div class="value">{{ totals.closing_value|fcfa }}</div><div class="sub">au dernier prix d'achat</div></div>
+  <div class="card kpi"><div class="label">Ventes du mois</div><div class="value">{{ totals.sales_value|fcfa }}</div><div class="sub">{{ totals.sold|num0 }} unité(s) vendue(s), au prix de vente</div></div>
+  <div class="card kpi"><div class="label">Pertes du mois</div><div class="value {% if totals.lost_value %}neg{% endif %}">{{ totals.lost_value|fcfa }}</div><div class="sub">{{ totals.lost|num0 }} unité(s) périmée(s) ou cassée(s)</div></div>
+  <div class="card kpi"><div class="label">Produits à commander</div><div class="value {% if low %}neg{% endif %}">{{ low|length }}</div><div class="sub">dont {{ out|length }} en rupture en fin de mois</div></div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Mouvements par produit</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Produit</th><th class="num">Stock début</th><th class="num">Entrées</th><th class="num">Vendu</th><th class="num">Pertes</th><th class="num">Ajustements</th><th class="num">Stock fin</th><th class="num">Valeur fin</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr{% if not r.product.active %} class="muted"{% endif %}>
+        <td>{% if perms_app.pharmacie %}<a href="{% url 'product_detail' r.product.id %}">{{ r.product.name }}</a>{% else %}{{ r.product.name }}{% endif %} <span class="small muted">{{ r.product.unit }}</span>{% if not r.product.active %} <span class="small">(inactif)</span>{% endif %}</td>
+        <td class="num">{{ r.opening|num0 }}</td>
+        <td class="num">{{ r.entries|num }}</td>
+        <td class="num">{{ r.sold|num }}</td>
+        <td class="num">{{ r.lost|num }}</td>
+        <td class="num {% if r.adjusted|neg %}neg{% endif %}">{{ r.adjusted|num }}</td>
+        <td class="num strong">{% if r.low %}<span class="badge badge-low">{{ r.closing|num0 }}</span>{% else %}{{ r.closing|num0 }}{% endif %}</td>
+        <td class="num">{{ r.closing_value|num }}</td>
+      </tr>
+    {% empty %}<tr><td colspan="8" class="muted">Aucun produit.</td></tr>{% endfor %}
+    </tbody>
+    {% if rows %}<tfoot><tr><td>Total</td><td class="num">{{ totals.opening|num0 }}</td><td class="num">{{ totals.entries|num0 }}</td><td class="num">{{ totals.sold|num0 }}</td><td class="num">{{ totals.lost|num0 }}</td><td class="num">{{ totals.adjusted|num0 }}</td><td class="num">{{ totals.closing|num0 }}</td><td class="num">{{ totals.closing_value|num0 }}</td></tr></tfoot>{% endif %}
+  </table></div>
+  <p class="small muted" style="margin-top:6px">Stock fin = stock début + entrées − vendu − pertes ± ajustements d'inventaire. En surbrillance : stock au seuil d'alerte ou en dessous.</p>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <div class="card">
+      <h2>Entrées du mois</h2>
+      <table class="data compact">
+        <thead><tr><th>Date</th><th>Produit</th><th>Origine</th><th class="num">Quantité</th><th class="num">Coût unitaire</th></tr></thead>
+        <tbody>{% for m in entries %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.get_kind_display }}{% if m.reference %} – {{ m.reference }}{% endif %}</td><td class="num">{{ m.quantity|num0 }}</td><td class="num">{{ m.unit_cost|num }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Aucune entrée.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Pertes (périmés, casse)</h2>
+      <table class="data compact">
+        <thead><tr><th>Date</th><th>Produit</th><th>Motif</th><th class="num">Quantité</th></tr></thead>
+        <tbody>{% for m in losses %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.note|default:m.reference }}</td><td class="num">{{ m.quantity|num0 }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Aucune perte.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Ajustements d'inventaire</h2>
+      <table class="data compact">
+        <thead><tr><th>Date</th><th>Produit</th><th>Par</th><th class="num">Écart</th></tr></thead>
+        <tbody>{% for m in adjustments %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{% if m.created_by %}{{ m.created_by.get_full_name|default:m.created_by.username }}{% else %}—{% endif %}</td><td class="num {% if m.quantity|neg %}neg{% endif %}">{{ m.quantity|num0 }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Aucun ajustement.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

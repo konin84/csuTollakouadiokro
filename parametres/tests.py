@@ -23,16 +23,17 @@ class SettingsBase(Base):
 
 class AccessTests(SettingsBase):
     PAGES = ["/parametres/", "/parametres/etablissement/", "/parametres/utilisateurs/",
-             "/parametres/utilisateurs/nouveau/", "/parametres/actes/", "/parametres/actes/nouveau/",
+             "/parametres/utilisateurs/nouveau/",
              "/parametres/commissions/", "/parametres/categories/", "/parametres/banques/",
              "/parametres/banques/nouveau/"]
+    ACT_PAGES = ["/parametres/actes/", "/parametres/actes/nouveau/"]
 
     def test_admin_sees_every_page(self):
         act = Act.objects.get(code="cpn")
         rule = CommissionRule.objects.first()
         details = ["/parametres/fournisseurs/", f"/parametres/actes/{act.id}/",
                    f"/parametres/utilisateurs/{self.cashier.id}/", f"/parametres/commissions/{rule.id}/"]
-        for url in self.PAGES + details:
+        for url in self.PAGES + self.ACT_PAGES + details:
             self.assertEqual(self.client.get(url).status_code, 200, url)
         self.assertContains(self.client.get(f"/parametres/actes/{act.id}/"), "Nouveau tarif")
         self.assertContains(self.client.get(f"/parametres/utilisateurs/{self.cashier.id}/"),
@@ -65,7 +66,7 @@ class AccessTests(SettingsBase):
 class FacilityTests(SettingsBase):
     def test_edit_facility_is_logged(self):
         r = self.client.post("/parametres/etablissement/", {
-            "name": "FSU COM KOTTIAKOFFIKRO", "short_name": "FSU KK", "address": "", "phone": "",
+            "name": " CCentre de Santé Urbain (CSU) de Tollakouadiokroentre de Santé Urbain (CSU) de Tollakouadiokro", "short_name": "FSU KK", "address": "", "phone": "",
             "opening_date": "2026-01-01", "opening_cash": 25000, "cash_tolerance": 500})
         self.assertRedirects(r, "/parametres/")
         self.assertEqual(Facility.current().opening_cash, 25000)
@@ -136,16 +137,16 @@ class UserTests(SettingsBase):
 class ActTests(SettingsBase):
     def test_create_act_with_price(self):
         r = self.client.post("/parametres/actes/nouveau/", {
-            "name": "Vaccination", "category": "SOINS", "fund": "ENTREE", "entry_mode": "QTE", "order": 300,
+            "name": "Vaccination", "category": "SOINS", "fund": "ENTREE", "order": 300,
             "active": "on", "price": 500, "valid_from": "2026-01-01"})
         act = Act.objects.get(name="Vaccination")
         self.assertRedirects(r, f"/parametres/actes/{act.id}/")
         self.assertEqual(act.code, "vaccination")
         self.assertEqual(act.price_on(date(2026, 6, 1)), 500)
 
-    def test_quantity_act_requires_a_price(self):
+    def test_new_act_requires_a_price(self):
         self.client.post("/parametres/actes/nouveau/", {
-            "name": "Sans prix", "category": "SOINS", "fund": "ENTREE", "entry_mode": "QTE", "order": 1})
+            "name": "Sans prix", "category": "SOINS", "fund": "ENTREE", "order": 1, "active": "on"})
         self.assertFalse(Act.objects.filter(name="Sans prix").exists())
 
     def test_new_price_keeps_history(self):
@@ -164,16 +165,6 @@ class ActTests(SettingsBase):
         self.client.post(f"/parametres/actes/{act.id}/tarif/{past.id}/supprimer/")
         self.client.post(f"/parametres/actes/{act.id}/tarif/{future.id}/supprimer/")
         self.assertEqual(list(act.prices.all()), [past])
-
-    def test_entry_mode_locked_once_used(self):
-        self.make_session(date(2026, 3, 2), cpn=1)
-        act = Act.objects.get(code="cpn")
-        self.client.post(f"/parametres/actes/{act.id}/", {
-            "name": "CPN", "category": "MATERNITE", "fund": "ENTREE", "entry_mode": "MONTANT", "order": 30,
-            "active": "on"})
-        act.refresh_from_db()
-        self.assertEqual((act.name, act.entry_mode), ("CPN", "QTE"))
-
 
 class SimpleListTests(SettingsBase):
     def test_commission_change_applies_without_restart(self):
@@ -205,3 +196,72 @@ class SimpleListTests(SettingsBase):
                                                           "fund": "PHARMA", "active": "on"})
         self.assertTrue(ExpenseCategory.objects.filter(name="Électricité").exists())
         self.assertTrue(BankAccount.objects.filter(bank="AFG Bank", fund="PHARMA").exists())
+
+
+class SupervisorActTests(SettingsBase):
+    """Le superviseur gère les actes médicaux (créer, modifier, tarifs, supprimer), pas le reste des paramètres."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.boss)
+
+    def test_supervisor_manages_acts_only(self):
+        for url in AccessTests.ACT_PAGES:
+            self.assertEqual(self.client.get(url).status_code, 200, url)
+        home = self.client.get("/")
+        self.assertContains(home, 'href="/parametres/actes/"')
+        self.assertNotContains(home, 'href="/parametres/"')
+        self.client.force_login(self.cashier)
+        self.assertEqual(self.client.get("/parametres/actes/").status_code, 403)
+
+    def test_create_edit_price_and_delete_unused_act(self):
+        self.client.post("/parametres/actes/nouveau/", {"code": "vaccin", "name": "Vaccination", "category": "SOINS",
+                                                         "fund": "ENTREE", "order": 300,
+                                                         "active": "on", "price": 500, "valid_from": "2026-01-01"})
+        act = Act.objects.get(name="Vaccination")
+        self.client.post(f"/parametres/actes/{act.id}/tarif/", {"price": 700, "valid_from": "2027-01-01"})
+        self.assertEqual(act.prices.count(), 2)
+        self.make_session(date(2026, 10, 5))                   # crée une ligne vide pour l'acte
+        self.client.post(f"/parametres/actes/{act.id}/supprimer/")
+        self.assertFalse(Act.objects.filter(name="Vaccination").exists())
+
+    def test_used_act_cannot_be_deleted(self):
+        act = Act.objects.get(code="cpn")
+        self.make_session(date(2026, 10, 5), cpn=2)
+        r = self.client.post(f"/parametres/actes/{act.id}/supprimer/", follow=True)
+        self.assertContains(r, "a déjà été facturé")
+        self.assertTrue(Act.objects.filter(pk=act.pk).exists())
+
+    def test_act_form_has_no_entry_mode(self):
+        self.assertNotContains(self.client.get("/parametres/actes/nouveau/"), "Mode de saisie")
+        r = self.client.post("/parametres/actes/nouveau/", {"name": "Goutte épaisse", "category": "LABO",
+                                                             "fund": "ENTREE", "is_lab": "on", "order": 200,
+                                                             "active": "on", "price": 1000,
+                                                             "valid_from": "2026-10-16"})
+        act = Act.objects.get(name="Goutte épaisse")
+        self.assertRedirects(r, f"/parametres/actes/{act.id}/")
+        self.assertEqual((act.entry_mode, act.is_lab, act.price_on(date(2026, 10, 16))), (Act.MODE_QUANTITY, True, 1000))
+
+    def test_act_names_are_unique(self):
+        data = {"category": "LABO", "fund": "ENTREE", "order": 200, "active": "on", "price": 1000,
+                "valid_from": "2026-10-16"}
+        self.client.post("/parametres/actes/nouveau/", {"name": "Goutte épaisse", **data})
+        # même libellé, autres accents / majuscules / espaces : refusé
+        r = self.client.post("/parametres/actes/nouveau/", {"name": "  goutte   EPAISSE ", **data})
+        self.assertContains(r, "L&#x27;acte « Goutte épaisse » existe déjà.")
+        self.assertEqual(Act.objects.filter(name_key="goutte epaisse").count(), 1)
+        # renommer un autre acte avec ce libellé : refusé aussi ; un acte désactivé est signalé
+        act = Act.objects.get(name="Goutte épaisse")
+        act.active = False
+        act.save()
+        cpn = Act.objects.get(code="cpn")
+        r = self.client.post(f"/parametres/actes/{cpn.id}/", {"name": "Goutte Épaisse", "category": "MATERNITE",
+                                                             "fund": "ENTREE", "order": 30, "active": "on"})
+        self.assertContains(r, "désactivé : rouvrez-le")
+        cpn.refresh_from_db()
+        self.assertEqual(cpn.name, "CPN")
+        # garder son propre libellé en modifiant l'acte : accepté
+        self.client.post(f"/parametres/actes/{cpn.id}/", {"name": "cpn", "category": "MATERNITE", "fund": "ENTREE",
+                                                         "order": 30, "active": "on"})
+        cpn.refresh_from_db()
+        self.assertEqual(cpn.name, "cpn")

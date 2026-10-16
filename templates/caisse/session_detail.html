@@ -19,74 +19,77 @@
   </div>
 </div>
 
-{% if not editable and session.is_open %}<div class="alert alert-info">Vous consultez cette journée en lecture seule.</div>{% endif %}
+{% if session.is_open and not editable and not can_spend and not perms_app.cloture %}<div class="alert alert-info">Vous consultez cette journée en lecture seule.</div>{% endif %}
 
 <div class="split">
   <div class="stack">
     {% include "caisse/_visits.html" %}
     <section class="card">
-      <div class="card-head"><h2>Recettes par acte</h2>{% if editable %}<span class="muted small">Les patients enregistrés sont comptés automatiquement. Saisissez ici seulement les actes <b>en plus</b> (patients non enregistrés). Entrée = ligne suivante.</span>{% endif %}</div>
+      <div class="card-head"><h2>Recettes par acte</h2>{% if editable %}<span class="muted small">Calculées à partir des reçus des patients du jour.</span>{% endif %}</div>
+      {# un onglet par catégorie d'actes (moins de défilement) ; à l'impression, toutes les catégories #}
+      <div class="tabs no-print" role="tablist" aria-label="Catégories d'actes">
+        {% for g in groups %}
+        <button type="button" role="tab" id="tab-{{ g.code }}" aria-controls="panel-{{ g.code }}"
+                aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" {% if not forloop.first %}tabindex="-1"{% endif %}
+                class="tab{% if g.total %} has-amount{% endif %}">
+          {{ g.label }}{% if g.total %} <span class="tab-amount">{{ g.total|num }}</span>{% endif %}
+        </button>
+        {% endfor %}
+      </div>
       <div class="table-wrap"><table class="data" id="acts">
-        <thead><tr><th>Acte</th><th class="hide-sm">Caisse</th><th class="num">Tarif</th><th class="num" title="Patients enregistrés">Patients</th><th class="num">En plus</th><th class="num">Montant</th></tr></thead>
-        <tbody>
-        {% for label, entries in groups %}
-          <tr class="group"><td colspan="6">{{ label }}</td></tr>
-          {% for e in entries %}
+        <thead><tr><th>Acte</th><th class="hide-sm">Caisse</th><th class="num">Tarif</th><th class="num">Nombre</th><th class="num">Montant</th></tr></thead>
+        {% for g in groups %}
+        <tbody class="tab-panel" role="tabpanel" id="panel-{{ g.code }}" aria-labelledby="tab-{{ g.code }}" {% if not forloop.first %}hidden{% endif %}>
+          <tr class="group print-only-row"><td colspan="5">{{ g.label }}</td></tr>
+          {% for e in g.entries %}
           <tr>
             <td>{{ e.act.name }}{% if e.note %}<div class="small muted">{{ e.note }}</div>{% endif %}</td>
             <td class="hide-sm"><span class="badge badge-fund">{% if e.act.fund == "PHARMA" %}Pharma + Écho{% else %}Entrées + Labo{% endif %}</span></td>
             <td class="num muted">{% if e.act.by_quantity %}{{ e.unit_price|num }}{% else %}montant{% endif %}</td>
-            <td class="num muted">{% if e.act.by_quantity %}{{ e.visit_qty|num }}{% else %}{{ e.visit_amount|num }}{% endif %}</td>
-            <td class="num">
-              {% if editable %}
-                <input type="number" min="0" step="1" inputmode="numeric" name="value"
-                       class="{% if e.act.by_quantity %}qty{% else %}amount{% endif %} entry-input"
-                       value="{% if e.act.by_quantity %}{{ e.quantity }}{% else %}{{ e.amount }}{% endif %}"
-                       aria-label="{{ e.act.name }}"
-                       hx-post="{% url 'entry_update' session.date|date:'Y-m-d' e.id %}" hx-trigger="change"
-                       hx-target="#summary" hx-swap="outerHTML">
-              {% else %}{% if e.act.by_quantity %}{{ e.quantity|num }}{% endif %}{% endif %}
-            </td>
-            <td class="num">{% include "caisse/_entry_amount.html" %}</td>
+            <td class="num">{% if e.act.by_quantity %}{{ e.total_qty|num }}{% endif %}</td>
+            <td class="num">{{ e.total_amount|num }}</td>
           </tr>
           {% endfor %}
-        {% endfor %}
+          <tr class="total"><td colspan="3">Total {{ g.label|lower }}</td><td class="num">{{ g.count|num }}</td><td class="num">{{ g.total|num0 }}</td></tr>
         </tbody>
+        {% endfor %}
       </table></div>
     </section>
 
     {% include "caisse/_sales.html" %}
-    {% include "caisse/_expenses.html" %}
+    {% if perms_app.depenses %}{% include "caisse/_expenses.html" %}{% endif %}
 
     {% if session.notes and not editable %}<section class="card"><h2>Observations</h2><p>{{ session.notes|linebreaksbr }}</p></section>{% endif %}
   </div>
   <div>{% include "caisse/_summary.html" %}</div>
 </div>
 {{ category_funds|json_script:"category-funds" }}
-{{ product_prices|json_script:"product-prices" }}
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
-  // Entrée : passer à la saisie suivante (comme dans Excel)
-  document.addEventListener('keydown', function (ev) {
-    if (ev.key !== 'Enter' || !ev.target.classList.contains('entry-input')) return;
-    ev.preventDefault();
-    var inputs = Array.prototype.slice.call(document.querySelectorAll('.entry-input'));
-    var i = inputs.indexOf(ev.target);
-    ev.target.dispatchEvent(new Event('change', {bubbles: true}));
-    if (inputs[i + 1]) { inputs[i + 1].focus(); inputs[i + 1].select(); }
+  // Onglets « Recettes par acte » : clic, flèches gauche/droite
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs [role=tab]'));
+  function selectTab(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { selectTab(t); });
+    t.addEventListener('keydown', function (ev) {
+      var next = ev.key === 'ArrowRight' ? tabs[(i + 1) % tabs.length] : ev.key === 'ArrowLeft' ? tabs[(i - 1 + tabs.length) % tabs.length] : null;
+      if (next) { ev.preventDefault(); selectTab(next); next.focus(); }
+    });
   });
-  document.addEventListener('focusin', function (ev) {
-    if (ev.target.classList && ev.target.classList.contains('entry-input')) ev.target.select();
-  });
-  // Catégorie de dépense -> caisse par défaut ; produit -> prix de vente
+  // Catégorie de dépense -> caisse par défaut
   var funds = JSON.parse(document.getElementById('category-funds').textContent || '{}');
-  var prices = JSON.parse(document.getElementById('product-prices').textContent || '{}');
   document.addEventListener('change', function (ev) {
     var t = ev.target;
     if (t.name === 'category' && t.form && funds[t.value]) t.form.elements['fund'].value = funds[t.value];
-    if (t.name === 'product' && t.form && prices[t.value] !== undefined) t.form.elements['unit_price'].value = prices[t.value];
   });
 })();
 </script>

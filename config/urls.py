@@ -26,10 +26,9 @@ urlpatterns = [
     path("caisse/ouvrir/", caisse.session_open, name="session_open"),
     path("caisse/patients/recherche/", caisse.patient_search, name="patient_search"),
     path(f"caisse/{D}/", caisse.session_detail, name="session_detail"),
-    path(f"caisse/{D}/acte/<int:entry_id>/", caisse.entry_update, name="entry_update"),
     path(f"caisse/{D}/depense/", caisse.expense_add, name="expense_add"),
     path(f"caisse/{D}/depense/<int:pk>/supprimer/", caisse.expense_delete, name="expense_delete"),
-    path(f"caisse/{D}/vente/", caisse.sale_add, name="sale_add"),
+    path(f"caisse/{D}/vente-pharmacie/", caisse.pharmacy_sale_new, name="pharmacy_sale_new"),
     path(f"caisse/{D}/vente/<int:pk>/supprimer/", caisse.sale_delete, name="sale_delete"),
     path(f"caisse/{D}/patient/", caisse.visit_new, name="visit_new"),
     path(f"caisse/{D}/patient/<int:pk>/", caisse.visit_receipt, name="visit_receipt"),
@@ -62,6 +61,8 @@ urlpatterns = [
     path("rapports/mensuel/excel/", rapports.monthly_xlsx, name="report_monthly_xlsx"),
     path("rapports/annuel/", rapports.annual, name="report_annual"),
     path("rapports/annuel/excel/", rapports.annual_xlsx, name="report_annual_xlsx"),
+    path("rapports/stock/", rapports.stock, name="report_stock"),
+    path("rapports/stock/excel/", rapports.stock_xlsx, name="report_stock_xlsx"),
 
     # Paramètres (administrateurs ; fournisseurs : pharmacie)
     path("parametres/", parametres.index, name="param_index"),
@@ -74,6 +75,7 @@ urlpatterns = [
     path("parametres/actes/nouveau/", parametres.act_edit, name="param_act_new"),
     path("parametres/actes/<int:pk>/", parametres.act_edit, name="param_act"),
     path("parametres/actes/<int:pk>/tarif/", parametres.act_price_add, name="param_act_price"),
+    path("parametres/actes/<int:pk>/supprimer/", parametres.act_delete, name="param_act_delete"),
     path("parametres/actes/<int:pk>/tarif/<int:price_id>/supprimer/", parametres.act_price_delete,
          name="param_act_price_delete"),
     path("parametres/<slug:kind>/", parametres.simple_list, name="param_list"),

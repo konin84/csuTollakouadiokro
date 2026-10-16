@@ -4,7 +4,7 @@
 <div class="card" style="max-width:560px">
   <h1>{{ day|date:"l j F Y"|capfirst }}</h1>
   <p class="muted">Cette journée n'a pas encore été ouverte.</p>
-  {% if perms_app.saisie %}
+  {% if perms_app.ouverture %}
   <form method="post" action="{% url 'session_open' %}">{% csrf_token %}
     <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
     <button class="btn btn-primary" type="submit">Ouvrir cette journée</button>

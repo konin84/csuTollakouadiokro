@@ -217,23 +217,88 @@ class ProductListTests(StockBase):
         self.assertEqual(self.client.get("/stock/").context["stock_value"], 1000)
 
 
+class ProductSearchTests(StockBase):
+    def test_search_filters_the_list_and_htmx_gets_the_same_page(self):
+        self.product("PARACETAMOL 500")
+        self.product("AMOXICILLINE 500")
+        self.client.force_login(self.pharma)
+        page = self.client.get("/stock/")
+        self.assertContains(page, 'hx-select="#products"')
+        r = self.client.get("/stock/?q=para&voir=actifs", HTTP_HX_REQUEST="true")
+        self.assertContains(r, 'id="products"')
+        self.assertContains(r, "PARACETAMOL 500")
+        self.assertNotContains(r, "AMOXICILLINE 500")
+        self.assertContains(self.client.get("/stock/?q=zzz"), "Aucun produit ne correspond")
+
+
 class PermissionTests(StockBase):
-    def test_cashier_can_view_but_not_manage_stock(self):
-        p = self.product("VITAMINE C", initial=10, sale_price=25)
+    def test_cashier_does_not_see_pharmacy(self):
+        p = self.product("VITAMINE C", initial=10, sale_price=25, reorder_level=50)
         self.client.force_login(self.cashier)
-        self.assertEqual(self.client.get("/stock/").status_code, 200)
-        self.assertEqual(self.client.get(f"/stock/produit/{p.id}/").status_code, 200)
-        for url in ("/stock/produit/nouveau/", "/stock/commandes/nouvelle/", "/stock/inventaire/",
-                    "/stock/sortie/"):
+        for url in ("/stock/", f"/stock/produit/{p.id}/", "/stock/commandes/", "/stock/produit/nouveau/",
+                    "/stock/commandes/nouvelle/", "/stock/inventaire/", "/stock/sortie/"):
             self.assertEqual(self.client.get(url).status_code, 403, url)
         self.client.post(f"/stock/produit/{p.id}/", {"name": "VITAMINE C", "form": "AUTRE", "unit": "unité",
                                                      "sale_price": 1, "purchase_price": 0, "reorder_level": 0})
         p.refresh_from_db()
         self.assertEqual(p.sale_price, 25)
+        home = self.client.get("/")
+        self.assertNotContains(home, 'href="/stock/')
+        self.assertNotContains(home, "Stock sous le seuil")
+        self.assertContains(home, 'href="/caisse/"')
 
-    def test_supervisor_can_manage_stock(self):
+    def test_cashier_still_sells_products_at_the_till(self):
+        p = self.product("VITAMINE C", initial=10, sale_price=25)
+        s = self.make_session(date(2026, 10, 2))
+        self.client.force_login(self.cashier)
+        self.client.post("/caisse/2026-10-02/vente-pharmacie/", {"patient_name": "", "phone": "", "sex": "", "age": "",
+                                                                  "product": [p.id], "product_qty": [2],
+                                                                  "product_unit": ["unite"]})
+        self.assertEqual(PharmacySale.objects.get(session=s).quantity, 2)
+        page = self.client.get("/caisse/2026-10-02/")
+        self.assertContains(page, "VITAMINE C")
+        self.assertNotContains(page, f'href="/stock/produit/{p.id}/"')
+
+    def test_pharmacy_does_not_see_cash(self):
+        s = self.make_session(date(2026, 10, 2))
+        self.client.force_login(self.pharma)
+        for url in ("/caisse/", "/caisse/aujourdhui/", "/caisse/2026-10-02/", "/versements/",
+                    "/caisse/patients/recherche/?q=kon", "/caisse/2026-10-02/patient/"):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        p = self.product("VITAMINE C", initial=10, sale_price=25)
+        self.assertEqual(self.client.post("/caisse/2026-10-02/vente-pharmacie/", {
+            "patient_name": "", "product": [p.id], "product_qty": [1], "product_unit": ["unite"]}).status_code, 403)
+        self.assertFalse(PharmacySale.objects.filter(session=s).exists())
+        home = self.client.get("/")
+        self.assertNotContains(home, 'href="/caisse/')
+        self.assertNotContains(home, 'href="/versements/')
+        self.assertNotContains(home, "Argent en caisse")
+        self.assertContains(home, "Stock sous le seuil")
+        self.assertContains(home, 'href="/stock/"')
+
+    def test_pharmacy_only_sees_the_stock_report(self):
+        self.client.force_login(self.pharma)
+        for url in ("/rapports/mensuel/", "/rapports/mensuel/excel/", "/rapports/annuel/", "/rapports/annuel/excel/"):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        self.assertEqual(self.client.get("/rapports/stock/").status_code, 200)
+        home = self.client.get("/")
+        self.assertNotContains(home, 'href="/rapports/mensuel/"')
+        self.assertNotContains(home, 'href="/rapports/annuel/"')
+        self.assertContains(home, 'href="/rapports/stock/"')
+
+    def test_supervisor_sees_stock_report_but_not_pharmacy_pages(self):
+        p = self.product("VITAMINE C", initial=10)
         self.client.force_login(self.boss)
-        self.assertEqual(self.client.get("/stock/inventaire/").status_code, 200)
+        for url in ("/stock/", f"/stock/produit/{p.id}/", "/stock/commandes/", "/stock/inventaire/",
+                    "/parametres/fournisseurs/"):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        home = self.client.get("/")
+        self.assertNotContains(home, ">Pharmacie</div>")
+        self.assertNotContains(home, 'href="/stock/')
+        self.assertContains(home, 'href="/rapports/stock/"')
+        report = self.client.get("/rapports/stock/")
+        self.assertContains(report, "VITAMINE C")
+        self.assertNotContains(report, f'href="/stock/produit/{p.id}/"')
 
 
 class StockEntryTests(StockBase):
@@ -268,7 +333,7 @@ class StockEntryTests(StockBase):
     def test_cashier_cannot_add_stock(self):
         p = self.product("X")
         self.client.force_login(self.cashier)
-        self.assertNotContains(self.client.get(f"/stock/produit/{p.id}/"), "Ajouter du stock")
+        self.assertEqual(self.client.get(f"/stock/produit/{p.id}/").status_code, 403)
         r = self.client.post(f"/stock/produit/{p.id}/entree/", {"quantity": 5, "date": "2026-10-15"})
         self.assertEqual(r.status_code, 403)
 
@@ -286,3 +351,115 @@ class StockEntryTests(StockBase):
         self.client.force_login(self.pharma)
         r = self.client.get("/stock/sortie/", {"produit": p.id})
         self.assertContains(r, f'<option value="{p.id}" selected>')
+
+
+class StockReportTests(StockBase):
+    def setUp(self):
+        super().setUp()
+        self.p = self.product("AMOXI 500", sale_price=75, purchase_price=40, reorder_level=150)
+        move = lambda day, kind, qty: StockMovement.objects.create(product=self.p, date=day, kind=kind, quantity=qty)
+        move(date(2026, 9, 20), StockMovement.INITIAL, 200)
+        move(date(2026, 9, 25), StockMovement.SALE, -20)                 # avant le mois : dans le stock début
+        move(date(2026, 10, 3), StockMovement.RECEPTION, 50)
+        PharmacySale.objects.create(session=self.make_session(date(2026, 10, 5)), product=self.p, quantity=80,
+                                    unit_price=75)                       # sortie de stock par le signal
+        move(date(2026, 10, 8), StockMovement.LOSS, -6)
+        move(date(2026, 10, 30), StockMovement.ADJUST, -2)
+        move(date(2026, 11, 2), StockMovement.SALE, -10)                 # après le mois : ignoré
+
+    def test_movements_by_product(self):
+        self.client.force_login(self.pharma)
+        r = self.client.get("/rapports/stock/?mois=2026-10")
+        self.assertEqual(r.status_code, 200)
+        row = next(x for x in r.context["rows"] if x["product"] == self.p)
+        self.assertEqual({k: row[k] for k in ("opening", "entries", "sold", "lost", "adjusted", "closing")},
+                         {"opening": 180, "entries": 50, "sold": 80, "lost": 6, "adjusted": -2, "closing": 142})
+        self.assertEqual((row["sales_value"], row["lost_value"], row["closing_value"]), (6000, 240, 5680))
+        self.assertIn(row, r.context["low"])  # 142 ≤ seuil de 150
+        self.assertEqual(len(r.context["entries"]), 1)
+        self.assertEqual(len(r.context["losses"]), 1)
+        self.assertEqual(len(r.context["adjustments"]), 1)
+
+    def test_excel_export(self):
+        self.client.force_login(self.pharma)
+        r = self.client.get("/rapports/stock/excel/?mois=2026-10")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("rapport-stock-2026-10.xlsx", r["Content-Disposition"])
+
+    def test_access(self):
+        self.client.force_login(self.pharma)
+        self.assertContains(self.client.get("/"), 'href="/rapports/stock/"')
+        self.client.force_login(self.boss)
+        self.assertEqual(self.client.get("/rapports/stock/").status_code, 200)
+        self.client.force_login(self.cashier)
+        self.assertEqual(self.client.get("/rapports/stock/").status_code, 403)
+        self.assertEqual(self.client.get("/rapports/stock/excel/").status_code, 403)
+        self.assertNotContains(self.client.get("/"), 'href="/rapports/stock/"')
+
+
+class PackagingTests(StockBase):
+    """Paracétamol : acheté par boîte de 100 comprimés, vendu par plaquette de 10 ou au comprimé."""
+
+    def setUp(self):
+        super().setUp()
+        self.p = Product.objects.create(name="PARACETAMOL 500", unit="comprimé", sale_price=25,
+                                        pack_unit="plaquette", pack_size=10, pack_price=200,
+                                        purchase_unit="boîte", purchase_size=100, purchase_price=1500)
+
+    def test_direct_entry_in_boxes(self):
+        self.client.force_login(self.pharma)
+        page = self.client.get(f"/stock/produit/{self.p.id}/")
+        self.assertContains(page, "Nombre de boîtes (100 comprimés)")
+        r = self.client.post(f"/stock/produit/{self.p.id}/entree/", {"quantity": 3, "date": "2026-10-15"},
+                             follow=True)
+        self.assertContains(r, "3 boîte(s) = 300 comprimé(s)")
+        self.assertEqual(self.p.stock_qty, 300)
+        self.assertEqual(self.p.movements.get().unit_cost, 15)      # 1 500 F / 100 comprimés
+        self.assertEqual(self.p.stock_value(300), 4500)
+
+    def test_order_and_reception_in_boxes(self):
+        self.client.force_login(self.pharma)
+        self.client.post("/stock/commandes/nouvelle/", {"date": "2026-10-10", "note": ""})
+        order = PurchaseOrder.objects.get()
+        self.client.post(f"/stock/commandes/{order.id}/", {"product": self.p.id, "quantity": 2, "unit_cost": 1600})
+        line = order.lines.get()
+        self.assertEqual((line.units_per_pack, line.total), (100, 3200))
+        self.client.post(f"/stock/commandes/{order.id}/statut/", {"action": "commander"})
+        self.client.post(f"/stock/commandes/{order.id}/reception/", {"date": "2026-10-12", f"qty_{line.id}": 2})
+        self.p.refresh_from_db()
+        self.assertEqual((self.p.stock_qty, self.p.purchase_price), (200, 1600))
+
+    def test_receipt_sells_blisters_and_tablets(self):
+        StockMovement.objects.create(product=self.p, date=date(2026, 10, 1), kind=StockMovement.INITIAL,
+                                     quantity=100)
+        self.make_session(date(2026, 10, 15))
+        self.client.force_login(self.cashier)
+        data = {"patient_name": "YAO Koffi", "phone": "", "sex": "M", "age": "40",
+                "act": [], "act_qty": [], "act_amount": [],
+                "product": [self.p.id, self.p.id], "product_qty": [2, 5], "product_unit": ["pack", "unite"]}
+        r = self.client.post("/caisse/2026-10-15/patient/", data, follow=True)
+        self.assertContains(r, "PARACETAMOL 500 (plaquette)")
+        self.assertEqual(self.p.stock_qty, 75)                      # 100 − 2 × 10 − 5
+        sales = {s.pack: (s.quantity, s.unit_price, s.amount) for s in PharmacySale.objects.all()}
+        self.assertEqual(sales, {True: (2, 200, 400), False: (5, 25, 125)})
+        # 8 plaquettes = 80 comprimés > 75 en stock
+        data.update(product=[self.p.id], product_qty=[8], product_unit=["pack"], patient_name="KONE Awa")
+        r = self.client.post("/caisse/2026-10-15/patient/", data)
+        self.assertContains(r, "75 comprimé(s) disponible(s)")
+
+    def test_walk_in_sale_by_blister(self):
+        StockMovement.objects.create(product=self.p, date=date(2026, 10, 1), kind=StockMovement.INITIAL,
+                                     quantity=100)
+        self.make_session(date(2026, 10, 15))
+        self.client.force_login(self.cashier)
+        self.client.post("/caisse/2026-10-15/vente-pharmacie/", {"patient_name": "", "phone": "", "sex": "", "age": "",
+                                                                 "product": [self.p.id], "product_qty": [3],
+                                                                 "product_unit": ["pack"]})
+        sale = PharmacySale.objects.get()
+        self.assertEqual((sale.unit_price, sale.amount, sale.units_per_item), (200, 600, 10))
+        self.assertEqual(self.p.stock_qty, 70)
+
+    def test_product_without_packaging_is_unchanged(self):
+        plain = self.product("SIROP TOUX", initial=10, sale_price=1500, purchase_price=900)
+        self.assertEqual((plain.purchase_size, plain.unit_cost, plain.has_pack, plain.describe(10)),
+                         (1, 900, False, ""))

@@ -1,16 +1,16 @@
 ﻿#Requires -RunAsAdministrator
 <#
-  Installation de FSU Caisse sur un PC Windows du réseau local.
+  Installation de CSU Caisse sur un PC Windows du réseau local.
 
   Usage (PowerShell en administrateur, depuis le dossier de l'application) :
       .\deploiement\windows\installer.ps1
-      .\deploiement\windows\installer.ps1 -Port 8080 -DossierCopieSauvegarde "E:\SauvegardesFSU"
-      .\deploiement\windows\installer.ps1 -FichierExcel "C:\Users\...\TABLEAU_DE_BORD_RECETTES_FSU_2026.xlsx" -Annee 2026
+      .\deploiement\windows\installer.ps1 -Port 8080 -DossierCopieSauvegarde "E:\SauvegardesCSU"
+      .\deploiement\windows\installer.ps1 -FichierExcel "C:\Users\...\TABLEAU_DE_BORD_RECETTES_CSU_2026.xlsx" -Annee 2026
 
   Le script peut être relancé : il ne recrée que ce qui manque et ne supprime aucune donnée.
 #>
 param(
-    [string]$Nom = "FSU COM KOTTIAKOFFIKRO",
+    [string]$Nom = "Centre de Santé Urbain (CSU) de Tollakouadiokro",
     [int]$Port = 80,
     [string]$DossierCopieSauvegarde = "",
     [string]$HeureSauvegarde = "20:00",
@@ -23,8 +23,8 @@ $App = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $Data = Join-Path $App "data"
 $VenvPy = Join-Path $App ".venv\Scripts\python.exe"
 $Wheels = Join-Path $PSScriptRoot "wheels"
-$TacheServeur = "FSU Caisse - Serveur"
-$TacheSauvegarde = "FSU Caisse - Sauvegarde"
+$TacheServeur = "CSU Caisse - Serveur"
+$TacheSauvegarde = "CSU Caisse - Sauvegarde"
 
 function Etape($texte) { Write-Host ""; Write-Host "==> $texte" -ForegroundColor Cyan }
 function Ok($texte) { Write-Host "    $texte" -ForegroundColor Green }
@@ -49,7 +49,7 @@ function Invoke-Manage {
 }
 
 Set-Location $App
-Write-Host "Installation de FSU Caisse dans $App" -ForegroundColor White
+Write-Host "Installation de CSU Caisse dans $App" -ForegroundColor White
 
 # 1. Python ------------------------------------------------------------------
 Etape "Recherche de Python 3.12 ou plus récent"
@@ -158,8 +158,8 @@ if ($FichierExcel) {
 
 # 5. Pare-feu et réseau -----------------------------------------------------------
 Etape "Pare-feu Windows : ouverture du port $Port pour le réseau local"
-Get-NetFirewallRule -DisplayName "FSU Caisse*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-New-NetFirewallRule -DisplayName "FSU Caisse (port $Port)" -Direction Inbound -Protocol TCP -LocalPort $Port `
+Get-NetFirewallRule -DisplayName "CSU Caisse*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+New-NetFirewallRule -DisplayName "CSU Caisse (port $Port)" -Direction Inbound -Protocol TCP -LocalPort $Port `
     -Action Allow -Profile Private, Domain | Out-Null
 Ok "Règle de pare-feu créée (réseaux privés uniquement)"
 foreach ($p in Get-NetConnectionProfile) {
@@ -183,14 +183,14 @@ $reglages = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
     -MultipleInstances IgnoreNew
 $action = New-ScheduledTaskAction -Execute $VenvPy -Argument "`"$App\serve.py`"" -WorkingDirectory $App
 Register-ScheduledTask -TaskName $TacheServeur -Action $action -Trigger (New-ScheduledTaskTrigger -AtStartup) `
-    -Principal $principal -Settings $reglages -Description "Serveur web FSU Caisse (réseau local)" -Force | Out-Null
+    -Principal $principal -Settings $reglages -Description "Serveur web CSU Caisse (réseau local)" -Force | Out-Null
 
 $reglagesSauv = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -StartWhenAvailable `
     -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 $actionSauv = New-ScheduledTaskAction -Execute $VenvPy -Argument "`"$App\manage.py`" sauvegarder" -WorkingDirectory $App
 Register-ScheduledTask -TaskName $TacheSauvegarde -Action $actionSauv `
     -Trigger (New-ScheduledTaskTrigger -Daily -At $HeureSauvegarde) -Principal $principal -Settings $reglagesSauv `
-    -Description "Sauvegarde quotidienne FSU Caisse (base + justificatifs)" -Force | Out-Null
+    -Description "Sauvegarde quotidienne CSU Caisse (base + justificatifs)" -Force | Out-Null
 Ok "Tâche « $TacheServeur » : démarre avec Windows"
 Ok "Tâche « $TacheSauvegarde » : tous les jours à $HeureSauvegarde"
 

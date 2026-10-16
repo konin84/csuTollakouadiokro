@@ -1,7 +1,7 @@
-# FSU Caisse
+# CSU Caisse
 
-Application web de gestion de caisse pour le centre de santé **FSU COM Kottiakoffikro**. Elle remplace le
-fichier Excel « TABLEAU DE BORD RECETTES FSU » (une feuille par mois).
+Application web de gestion de caisse pour le **Centre de Santé Urbain (CSU) de Tollakouadiokro**. Elle remplace le
+fichier Excel « TABLEAU DE BORD RECETTES CSU » (une feuille par mois).
 
 - **Journée de caisse** : saisie du *nombre* d'actes, au tarif en vigueur à la date du jour (tarifs datés),
   ventes pharmacie, dépenses par catégorie avec photo du reçu, clôture avec comptage de la caisse,
@@ -36,9 +36,9 @@ python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 export DEBUG=1
 python manage.py migrate
-python manage.py init_fsu --nom "FSU COM KOTTIAKOFFIKRO" --demarrage 2026-01-01
+python manage.py init_fsu --nom "Centre de Santé Urbain (CSU) de Tollakouadiokro" --demarrage 2026-01-01
 python manage.py createsuperuser
-python manage.py import_excel TABLEAU_DE_BORD_RECETTES_FSU_2026.xlsx --annee 2026 --produits   # facultatif
+python manage.py import_excel TABLEAU_DE_BORD_RECETTES_CSU_2026.xlsx --annee 2026 --produits   # facultatif
 python manage.py runserver 0.0.0.0:8000
 python manage.py test
 ```

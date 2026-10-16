@@ -2,7 +2,7 @@
 
     python manage.py restaurer C:\\FSUCaisse\\data\\sauvegardes\\fsu-caisse_2026-10-15_2000.zip
 
-ARRÊTEZ LE SERVEUR AVANT (tâche planifiée « FSU Caisse - Serveur »).
+ARRÊTEZ LE SERVEUR AVANT (tâche planifiée « CSU Caisse - Serveur »).
 La base actuelle est d'abord mise de côté (fichier .avant-restauration).
 """
 import shutil

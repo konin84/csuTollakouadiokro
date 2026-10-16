@@ -9,12 +9,13 @@
   <div class="actions">
     {% if today_session %}
       <a class="btn btn-primary" href="{% url 'session_detail' today|date:'Y-m-d' %}">Journée du jour <span class="badge badge-{{ today_session.status }}">{{ today_session.get_status_display }}</span></a>
-    {% elif perms_app.saisie %}
+    {% elif perms_app.ouverture %}
       <form method="post" action="{% url 'session_open' %}">{% csrf_token %}<input type="hidden" name="date" value="{{ today|date:'Y-m-d' }}"><button class="btn btn-primary">Ouvrir la journée du jour</button></form>
     {% endif %}
   </div>
 </div>
 
+{% if perms_app.caisse %}
 <div class="grid grid-4" style="margin-bottom:16px">
   <div class="card kpi">
     <div class="label">Recette nette – {{ month_name }}</div>
@@ -29,13 +30,20 @@
   <div class="card kpi">
     <div class="label">Argent en caisse (théorique)</div>
     <div class="value {% if cash_now|neg %}neg{% endif %}">{{ cash_now|fcfa }}</div>
-    <div class="sub">à verser à la banque</div>
+    <div class="sub">à remettre au superviseur</div>
   </div>
+  {% if perms_app.banque %}
   <div class="card kpi">
-    <div class="label">Versé en banque ce mois</div>
-    <div class="value">{{ deposits_month|fcfa }}</div>
-    <div class="sub"><a href="{% url 'deposit_list' %}">Voir les versements</a></div>
+    <div class="label">Chez le superviseur (à verser)</div>
+    <div class="value {% if supervisor_cash|neg %}neg{% endif %}">{{ supervisor_cash|fcfa }}</div>
+    <div class="sub">versé en banque ce mois : {{ deposits_month|fcfa }} · <a href="{% url 'deposit_list' %}">versements</a></div>
   </div>
+  {% else %}
+  <div class="card kpi">
+    <div class="label">Remis au superviseur ce mois</div>
+    <div class="value">{{ handovers_month|fcfa }}</div>
+  </div>
+  {% endif %}
 </div>
 
 <div class="split">
@@ -77,14 +85,33 @@
       </ul>
       {% else %}<p class="muted">Rien à signaler.</p>{% endif %}
     </div>
-    <div class="card">
-      <div class="card-head"><h2>Stock sous le seuil</h2><a class="small" href="{% url 'product_list' %}?voir=alerte">Tout voir</a></div>
-      {% if low_stock %}
-      <table class="data compact"><tbody>
-        {% for p in low_stock|slice:":8" %}<tr><td><a href="{% url 'product_detail' p.id %}">{{ p.name }}</a></td><td class="num"><span class="badge badge-low">{{ p.qty|default:0 }} / {{ p.reorder_level }}</span></td></tr>{% endfor %}
-      </tbody></table>
-      {% else %}<p class="muted">Aucun produit sous son seuil d'alerte.</p>{% endif %}
-    </div>
+    {% if perms_app.pharmacie %}{% include "core/_low_stock.html" %}{% endif %}
   </div>
 </div>
+{% elif perms_app.pharmacie %}
+<div class="grid grid-4" style="margin-bottom:16px">
+  <div class="card kpi">
+    <div class="label">Produits actifs</div>
+    <div class="value">{{ products_count|num0 }}</div>
+    <div class="sub"><a href="{% url 'product_list' %}">Voir le stock</a></div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Sous le seuil d'alerte</div>
+    <div class="value {% if low_stock %}neg{% endif %}">{{ low_stock|length }}</div>
+    <div class="sub">dont {{ out_of_stock }} en rupture</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Valeur du stock (prix d'achat)</div>
+    <div class="value">{{ stock_value|fcfa }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Commandes en attente de réception</div>
+    <div class="value">{{ orders_pending }}</div>
+    <div class="sub"><a href="{% url 'order_list' %}">Voir les commandes</a></div>
+  </div>
+</div>
+{% include "core/_low_stock.html" %}
+{% else %}
+<div class="card"><p class="muted">Aucun rôle ne vous est attribué. Demandez à l'administrateur de vous attribuer un rôle.</p></div>
+{% endif %}
 {% endblock %}

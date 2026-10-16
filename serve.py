@@ -3,7 +3,7 @@
     python serve.py                  # écoute sur toutes les cartes réseau, port PORT du .env (80 par défaut)
 
 Sous Windows, ce script est lancé au démarrage du PC par la tâche planifiée
-« FSU Caisse - Serveur » créée par installer.ps1.
+« CSU Caisse - Serveur » créée par installer.ps1.
 """
 import logging
 import os
@@ -33,9 +33,9 @@ def main():
         handlers=[logging.FileHandler(settings.DATA_DIR / "serveur.log", encoding="utf-8"),
                   logging.StreamHandler()],
     )
-    logging.info("FSU Caisse : démarrage sur http://%s:%s (données : %s)", host, port, settings.DATA_DIR)
+    logging.info("CSU Caisse : démarrage sur http://%s:%s (données : %s)", host, port, settings.DATA_DIR)
     serve(application, host=host, port=port, threads=int(os.environ.get("THREADS", "8")),
-          ident="FSU Caisse", max_request_body_size=20 * 1024 * 1024)
+          ident="CSU Caisse", max_request_body_size=20 * 1024 * 1024)
 
 
 if __name__ == "__main__":

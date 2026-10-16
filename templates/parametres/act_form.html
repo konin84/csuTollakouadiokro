@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% load fsu %}
 {% block title %}{% if obj %}{{ obj.name }}{% else %}Nouvel acte{% endif %}{% endblock %}
 {% block content %}
-<div class="page-head"><div><div class="crumb"><a href="{% url 'param_index' %}">Paramètres</a> › <a href="{% url 'param_acts' %}">Actes et tarifs</a></div>
+<div class="page-head"><div><div class="crumb">{% if perms_app.parametres %}<a href="{% url 'param_index' %}">Paramètres</a>{% else %}Administration{% endif %} › <a href="{% url 'param_acts' %}">Actes et tarifs</a></div>
   <h1>{% if obj %}{{ obj.name }}{% else %}Nouvel acte{% endif %}</h1></div></div>
 <div class="grid grid-2" style="align-items:start">
   <div class="card">
@@ -10,6 +10,12 @@
       {{ form.as_div }}
       <button class="btn btn-primary">{% if obj %}Enregistrer{% else %}Créer l'acte{% endif %}</button>
     </form>
+    {% if obj %}
+    <form method="post" action="{% url 'param_act_delete' obj.id %}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">{% csrf_token %}
+      <button class="btn btn-danger btn-sm" data-confirm="Supprimer l'acte « {{ obj.name }} » ?">Supprimer l'acte</button>
+      <span class="small muted">Possible seulement s'il n'a jamais été facturé ; sinon, décochez « Actif ».</span>
+    </form>
+    {% endif %}
   </div>
   {% if obj and obj.by_quantity %}
   <div class="card">
@@ -22,7 +28,7 @@
         <tr>
           <td>{{ p.valid_from|date:"d/m/Y" }}</td>
           <td class="num">{{ p.price|fcfa }}</td>
-          <td>{% if p.valid_from > today %}<form method="post" action="{% url 'param_act_price_delete' obj.id p.id %}">{% csrf_token %}<button class="btn-link" onclick="return confirm('Supprimer ce tarif à venir ?')">Supprimer</button></form>{% endif %}</td>
+          <td>{% if p.valid_from > today %}<form method="post" action="{% url 'param_act_price_delete' obj.id p.id %}">{% csrf_token %}<button class="btn-link" data-confirm="Supprimer ce tarif à venir ?">Supprimer</button></form>{% endif %}</td>
         </tr>
       {% empty %}<tr><td colspan="3" class="muted">Aucun tarif : cet acte compte 0 F.</td></tr>{% endfor %}
       </tbody>

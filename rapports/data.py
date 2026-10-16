@@ -1,9 +1,12 @@
 """Préparation des données des rapports (partagée entre l'écran et l'export Excel)."""
 from collections import defaultdict
 
+from django.db.models import Q, Sum
+
 from caisse import services
-from caisse.models import Deposit, Expense
+from caisse.models import Deposit, Expense, PharmacySale
 from core.models import Facility
+from stock.models import Product, StockMovement
 
 MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre",
              "Novembre", "Décembre"]
@@ -26,8 +29,11 @@ def monthly(year: int, month: int):
                     .select_related("category", "session").order_by("session__date", "id"))
     deposits = list(Deposit.objects.filter(facility=facility, date__range=(start, end))
                     .select_related("account").order_by("date"))
-    cash_start = services.cash_balance(start, facility, include_day=False)
-    cash_end = services.cash_balance(end, facility)
+    # argent pas encore versé à la banque : dans la caisse + chez le superviseur
+    cash_start = (services.cash_balance(start, facility, include_day=False)
+                  + services.supervisor_balance(start, facility, include_day=False))
+    till_end = services.cash_balance(end, facility)
+    supervisor_end = services.supervisor_balance(end, facility)
     return {
         "facility": facility,
         "year": year, "month": month, "month_name": f"{MONTHS_FR[month - 1]} {year}",
@@ -36,7 +42,8 @@ def monthly(year: int, month: int):
         "expenses": expenses,
         "expenses_by_category": sorted(total.expenses_by_category.items(), key=lambda kv: -kv[1]),
         "deposits": deposits, "deposits_total": sum(d.amount for d in deposits),
-        "cash_start": cash_start, "cash_end": cash_end,
+        "cash_start": cash_start, "cash_end": till_end + supervisor_end,
+        "till_end": till_end, "supervisor_end": supervisor_end,
     }
 
 
@@ -65,4 +72,70 @@ def annual(year: int):
         "facility": facility, "year": year, "rows": rows, "grand": grand,
         "deposits_total": sum(r["deposits"] for r in rows),
         "activity": activity, "expenses": expenses, "month_names": [m[:4] + "." for m in MONTHS_FR],
+    }
+
+
+# colonnes du rapport de stock : type de mouvement -> colonne
+STOCK_COLUMNS = {
+    StockMovement.INITIAL: "entries", StockMovement.RECEPTION: "entries", StockMovement.ENTRY: "entries",
+    StockMovement.SALE: "sold", StockMovement.LOSS: "lost",
+    StockMovement.ADJUST: "adjusted",
+}
+
+
+def stock_monthly(year: int, month: int):
+    """Mouvements de stock du mois par produit (en unités de stock) : stock au début, entrées, sorties,
+    ajustements, stock à la fin. Les valeurs sont au dernier prix d'achat (stock, pertes) et au prix de vente réel
+    des ventes du mois (ventes à l'unité ou par plaquette)."""
+    facility = Facility.current()
+    start, end = services.month_bounds(year, month)
+    in_month = Q(movements__date__range=(start, end))
+    products = Product.objects.annotate(
+        opening=Sum("movements__quantity", filter=Q(movements__date__lt=start)),
+        moved=Sum("movements__quantity", filter=in_month),
+    )
+    per_kind = defaultdict(dict)
+    for r in (StockMovement.objects.filter(date__range=(start, end))
+              .values("product_id", "kind").annotate(q=Sum("quantity"))):
+        per_kind[r["product_id"]][r["kind"]] = r["q"]
+    sales = dict(PharmacySale.objects.filter(session__facility=facility, session__date__range=(start, end),
+                                             product__isnull=False)
+                 .values_list("product_id").annotate(s=Sum("amount")))
+
+    rows = []
+    totals = defaultdict(int)
+    for p in products:
+        kinds = per_kind.get(p.id, {})
+        if not (p.active or p.opening or kinds):
+            continue
+        row = {"product": p, "opening": p.opening or 0, "entries": 0, "sold": 0, "lost": 0,
+               "adjusted": 0}
+        for kind, q in kinds.items():
+            col = STOCK_COLUMNS[kind]
+            # sorties affichées en positif ; les ajustements gardent leur signe
+            row[col] += q if col in ("entries", "adjusted") else -q
+        row["closing"] = row["opening"] + (p.moved or 0)
+        row["sales_value"] = sales.get(p.id, 0)
+        row["lost_value"] = round(row["lost"] * p.unit_cost)
+        row["closing_value"] = p.stock_value(row["closing"])
+        row["low"] = p.active and p.reorder_level > 0 and row["closing"] <= p.reorder_level
+        rows.append(row)
+        for k in ("opening", "entries", "sold", "lost", "adjusted", "closing", "sales_value",
+                  "lost_value", "closing_value"):
+            totals[k] += row[k]
+
+    details = (StockMovement.objects.filter(date__range=(start, end),
+                                            kind__in=[StockMovement.RECEPTION, StockMovement.ENTRY,
+                                                      StockMovement.LOSS, StockMovement.ADJUST])
+               .select_related("product", "created_by").order_by("date", "id"))
+    return {
+        "facility": facility,
+        "year": year, "month": month, "month_name": f"{MONTHS_FR[month - 1]} {year}",
+        "start": start, "end": end,
+        "rows": rows, "totals": totals,
+        "low": [r for r in rows if r["low"]],
+        "out": [r for r in rows if r["product"].active and r["closing"] <= 0],
+        "entries": [m for m in details if m.kind in (StockMovement.RECEPTION, StockMovement.ENTRY)],
+        "losses": [m for m in details if m.kind == StockMovement.LOSS],
+        "adjustments": [m for m in details if m.kind == StockMovement.ADJUST],
     }

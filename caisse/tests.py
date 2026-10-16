@@ -16,6 +16,7 @@ class Base(TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("init_fsu", "--demarrage", "2026-01-01", verbosity=0, stdout=StringIO())
+        services.legacy_lab_act()  # montants de laboratoire des journées importées d'Excel
         cls.facility = Facility.current()
         cls.cashier = User.objects.create_user("caissier", password="x")
         cls.cashier.groups.add(Group.objects.get(name="Caissier"))
@@ -29,7 +30,8 @@ class Base(TestCase):
         s = CashSession.objects.create(facility=self.facility, date=day)
         services.ensure_entries(s)
         for code, value in amounts.items():
-            e = s.entries.get(act__code=code)
+            e = (s.entries.filter(act__code=code).first()
+                 or ActEntry.objects.create(session=s, act=Act.objects.get(code=code), quantity=0))
             if e.act.by_quantity:
                 e.quantity = value
             else:
@@ -91,8 +93,15 @@ class WorkflowTests(Base):
     def test_close_validate_reopen(self):
         day = date(2026, 10, 5)
         s = self.make_session(day, cpn=5)
-        Deposit.objects.create(facility=self.facility, date=day, account=BankAccount.objects.first(), amount=2000)
+        Deposit.objects.create(facility=self.facility, date=day, account=BankAccount.objects.first(), amount=2000,
+                               from_till=True)
+        # seul le superviseur clôture la journée
         self.client.force_login(self.cashier)
+        self.assertNotContains(self.client.get(f"/caisse/{day:%Y-%m-%d}/"), "Clôturer la journée")
+        r = self.client.post(f"/caisse/{day:%Y-%m-%d}/cloturer/", {"counted_cash": 2900, "notes": ""})
+        self.assertEqual(r.status_code, 403)
+        self.client.force_login(self.boss)
+        self.assertContains(self.client.get(f"/caisse/{day:%Y-%m-%d}/"), "Clôturer la journée")
         r = self.client.post(f"/caisse/{day:%Y-%m-%d}/cloturer/", {"counted_cash": 2900, "notes": ""})
         self.assertEqual(r.status_code, 302)
         s.refresh_from_db()
@@ -101,16 +110,19 @@ class WorkflowTests(Base):
         self.assertEqual(s.cash_gap, -100)
 
         # la caissière ne peut plus modifier, ni valider
-        entry = s.entries.get(act__code="cpn")
-        r = self.client.post(f"/caisse/{day:%Y-%m-%d}/acte/{entry.id}/", {"value": 9})
+        self.client.force_login(self.cashier)
+        r = self.client.post(f"/caisse/{day:%Y-%m-%d}/patient/", {"patient_name": "YAO Koffi"})
         self.assertEqual(r.status_code, 403)
-        r = self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/")
+        r = self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/", {"handed_over": 2900})
         self.assertEqual(r.status_code, 403)
 
         self.client.force_login(self.boss)
-        self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/")
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/")  # argent reçu obligatoire
         s.refresh_from_db()
-        self.assertEqual(s.status, CashSession.VALIDATED)
+        self.assertEqual(s.status, CashSession.CLOSED)
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/", {"handed_over": 2900})
+        s.refresh_from_db()
+        self.assertEqual((s.status, s.handed_over, s.handover_gap), (CashSession.VALIDATED, 2900, 0))
 
         r = self.client.post(f"/caisse/{day:%Y-%m-%d}/rouvrir/", {"reason": ""})
         s.refresh_from_db()
@@ -120,27 +132,77 @@ class WorkflowTests(Base):
         self.assertEqual(s.status, CashSession.OPEN)
         self.assertTrue(AuditLog.objects.filter(action="reopen", details__motif="erreur de saisie CPN").exists())
 
-    def test_entry_update_via_htmx(self):
-        day = date(2026, 10, 6)
-        s = self.make_session(day)
-        entry = s.entries.get(act__code="consultation-curative")
-        self.client.force_login(self.cashier)
-        r = self.client.post(f"/caisse/{day:%Y-%m-%d}/acte/{entry.id}/", {"value": "12"}, HTTP_HX_REQUEST="true")
-        self.assertEqual(r.status_code, 200)
-        entry.refresh_from_db()
-        self.assertEqual((entry.quantity, entry.amount), (12, 12000))
-        self.assertContains(r, "12 000")
-
     def test_cash_balance_carries_over(self):
         self.facility.opening_cash = 5000
         self.facility.save()
         self.make_session(date(2026, 1, 2), cpn=10)       # +10 000
         self.make_session(date(2026, 1, 3), cpn=4)        # +4 000
         Deposit.objects.create(facility=self.facility, date=date(2026, 1, 3), account=BankAccount.objects.first(),
-                               amount=12000)
+                               amount=12000, from_till=True)
         services.clear_caches()
         self.assertEqual(services.cash_balance(date(2026, 1, 3), include_day=False), 15000)
         self.assertEqual(services.cash_balance(date(2026, 1, 3)), 7000)
+
+
+class HandoverTests(Base):
+    """Le superviseur clôture, reçoit l'argent du caissier en validant, puis le verse à la banque."""
+
+    def close_and_validate(self, day, counted, received):
+        self.client.force_login(self.boss)
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/cloturer/", {"counted_cash": counted, "notes": ""})
+        return self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/", {"handed_over": received}, follow=True)
+
+    def test_money_moves_from_till_to_supervisor_to_bank(self):
+        day = date(2026, 10, 5)
+        self.make_session(day, cpn=5)                                     # 5 000 F
+        services.clear_caches()
+        self.assertEqual((services.cash_balance(day), services.supervisor_balance(day)), (5000, 0))
+        self.close_and_validate(day, 5000, 5000)
+        self.assertEqual((services.cash_balance(day), services.supervisor_balance(day)), (0, 5000))
+        self.client.post("/versements/ajouter/", {"date": "2026-10-06", "account": BankAccount.objects.first().id,
+                                                  "amount": 5000, "reference": "", "depositor": "", "note": ""})
+        d = Deposit.objects.get()
+        self.assertFalse(d.from_till)
+        nxt = date(2026, 10, 6)
+        self.assertEqual((services.cash_balance(nxt), services.supervisor_balance(nxt)), (0, 0))
+        # la journée suivante commence avec une caisse vide
+        self.make_session(nxt, cpn=1)
+        self.client.post(f"/caisse/{nxt:%Y-%m-%d}/cloturer/", {"counted_cash": 1000, "notes": ""})
+        self.assertEqual(CashSession.objects.get(date=nxt).cash_gap, 0)
+
+    def test_short_handover_is_flagged_and_stays_in_till(self):
+        day = date(2026, 10, 5)
+        self.make_session(day, cpn=5)
+        r = self.close_and_validate(day, 5000, 4500)
+        self.assertContains(r, "diffère de -500 F")
+        s = CashSession.objects.get(date=day)
+        self.assertEqual(s.handover_gap, -500)
+        self.assertEqual(AuditLog.objects.filter(action="validate").last().details["écart de remise"], -500)
+        services.clear_caches()
+        self.assertEqual((services.cash_balance(day), services.supervisor_balance(day)), (500, 4500))
+
+    def test_reopen_keeps_handover_and_revalidation_corrects_it(self):
+        day = date(2026, 10, 5)
+        self.make_session(day, cpn=5)
+        self.close_and_validate(day, 5000, 5000)
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/rouvrir/", {"reason": "CPN oubliée"})
+        self.assertEqual(CashSession.objects.get(date=day).handed_over, 5000)
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/cloturer/", {"counted_cash": 6000, "notes": ""})
+        self.assertContains(self.client.get(f"/caisse/{day:%Y-%m-%d}/"), 'value="6000"')  # pré-rempli : argent compté
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/valider/", {"handed_over": 6000})
+        self.assertEqual(CashSession.objects.get(date=day).handed_over, 6000)
+
+    def test_only_supervisor_records_bank_deposits(self):
+        self.client.force_login(self.cashier)
+        self.assertEqual(self.client.get("/versements/").status_code, 403)
+        r = self.client.post("/versements/ajouter/", {"date": "2026-10-06", "account": BankAccount.objects.first().id,
+                                                      "amount": 100})
+        self.assertEqual(r.status_code, 403)
+        self.assertFalse(Deposit.objects.exists())
+        self.assertNotContains(self.client.get("/"), 'href="/versements/"')
+        self.client.force_login(self.boss)
+        self.assertEqual(self.client.get("/versements/").status_code, 200)
+        self.assertContains(self.client.get("/"), "Chez le superviseur")
 
 
 class StockTests(Base):
@@ -174,3 +236,24 @@ class StockTests(Base):
         p.refresh_from_db()
         self.assertEqual(p.stock_qty, 96)
         self.assertEqual(p.purchase_price, 950)
+
+
+class ExpenseAccessTests(Base):
+    """Les dépenses payées en espèces sont réservées au superviseur (et aux administrateurs)."""
+
+    def test_only_supervisor_sees_and_records_expenses(self):
+        day = date(2026, 10, 5)
+        self.make_session(day)
+        data = {"category": ExpenseCategory.objects.first().id, "fund": FUND_ENTREE, "amount": 1500,
+                "description": "Rame de papier", "beneficiary": ""}
+        self.client.force_login(self.cashier)
+        self.assertNotContains(self.client.get(f"/caisse/{day:%Y-%m-%d}/"), "Dépenses payées en espèces")
+        self.assertEqual(self.client.post(f"/caisse/{day:%Y-%m-%d}/depense/", data).status_code, 403)
+        self.assertFalse(Expense.objects.exists())
+        self.client.force_login(self.boss)
+        self.assertContains(self.client.get(f"/caisse/{day:%Y-%m-%d}/"), "Ajouter la dépense")
+        self.client.post(f"/caisse/{day:%Y-%m-%d}/depense/", data)
+        expense = Expense.objects.get()
+        self.client.force_login(self.cashier)
+        self.assertEqual(self.client.post(f"/caisse/{day:%Y-%m-%d}/depense/{expense.id}/supprimer/").status_code, 403)
+        self.assertTrue(Expense.objects.exists())

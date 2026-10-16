@@ -7,7 +7,7 @@
     <div style="max-width:220px"><label>Date de réception</label><input type="date" name="date" value="{{ today|date:'Y-m-d' }}"></div>
     <table class="data">
       <thead><tr><th>Produit</th><th class="num">Commandé</th><th class="num">Reçu</th></tr></thead>
-      <tbody>{% for l in lines %}<tr><td>{{ l.product.name }}</td><td class="num">{{ l.quantity }}</td><td class="num"><input class="qty" type="number" min="0" name="qty_{{ l.id }}" value="{{ l.quantity }}"></td></tr>{% endfor %}</tbody>
+      <tbody>{% for l in lines %}<tr><td>{{ l.product.name }}</td><td class="num">{{ l.quantity }} <span class="small muted">{{ l.unit_label }}</span></td><td class="num"><input class="qty" type="number" min="0" name="qty_{{ l.id }}" value="{{ l.quantity }}"> <span class="small muted">{{ l.unit_label }}{% if l.units_per_pack > 1 %} × {{ l.units_per_pack }} {{ l.product.unit }}{% endif %}</span></td></tr>{% endfor %}</tbody>
     </table>
     <p style="margin-top:12px"><button class="btn btn-primary">Valider la réception (ajoute au stock)</button></p>
   </form>

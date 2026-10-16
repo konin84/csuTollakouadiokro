@@ -1,4 +1,9 @@
+import os
+
 from django import template
+from django.conf import settings
+from django.contrib.staticfiles import finders
+from django.templatetags.static import static
 
 from core.roles import can as can_right
 
@@ -76,3 +81,21 @@ def neg(value):
         return float(value) < 0
     except (TypeError, ValueError):
         return False
+
+
+@register.simple_tag
+def asset(path):
+    """URL d'un fichier statique. En développement, ?v=<date de modification> force le navigateur à recharger
+    le fichier modifié (en production, le nom du fichier contient déjà une empreinte)."""
+    url = static(path)
+    if settings.DEBUG:
+        found = finders.find(path)
+        if found:
+            url += f"?v={int(os.path.getmtime(found))}"
+    return url
+
+
+@register.filter
+def stock_describe(qty, product):
+    """Stock en unités d'achat : 1 045 comprimés -> « 10 boîte(s) + 45 comprimé(s) »."""
+    return product.describe(qty or 0)

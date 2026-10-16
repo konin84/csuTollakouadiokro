@@ -6,7 +6,7 @@
   <form method="post" enctype="multipart/form-data" class="form">{% csrf_token %}
     {{ form.as_div }}
     <button class="btn btn-primary" type="submit">Enregistrer</button>
-    <button class="btn btn-danger" type="submit" name="delete" value="1" onclick="return confirm('Supprimer ce versement ?')">Supprimer</button>
+    <button class="btn btn-danger" type="submit" name="delete" value="1" data-confirm="Supprimer ce versement ?">Supprimer</button>
   </form>
   <p class="small muted" style="margin-top:8px">Toute modification est conservée dans le journal d'activité.</p>
 </div>

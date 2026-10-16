@@ -1,0 +1,82 @@
+{# Champs de la fiche produit, regroupés par sections (création et modification) #}
+{% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+<fieldset class="fieldset">
+  <legend>1. Le produit</legend>
+  <div class="form-grid">
+    <div class="wide">{{ form.name.as_field_group }}</div>
+    <div>{{ form.form.as_field_group }}</div>
+    <div>{{ form.code.as_field_group }}</div>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>2. Vente à l'unité</legend>
+  <p class="fieldset-help">La plus petite quantité que vous vendez. Le stock est compté dans cette unité.</p>
+  <div class="form-grid">
+    <div>{{ form.unit.as_field_group }}</div>
+    <div>{{ form.sale_price.as_field_group }}</div>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>3. Vente par plaquette, sachet… <span class="optional">facultatif</span></legend>
+  <p class="fieldset-help">Seulement si ce produit se vend aussi par lot. Ex. une plaquette de 10 comprimés à 200 F.</p>
+  <div class="form-grid">
+    <div>{{ form.pack_unit.as_field_group }}</div>
+    <div>{{ form.pack_size.as_field_group }}</div>
+    <div>{{ form.pack_price.as_field_group }}</div>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>4. Achat chez le fournisseur</legend>
+  <p class="fieldset-help">Ex. une boîte de 100 comprimés à 1 500 F. Si vous achetez à l'unité, laissez les deux premières cases vides
+    et indiquez le prix d'une unité.</p>
+  <div class="form-grid">
+    <div>{{ form.purchase_unit.as_field_group }}</div>
+    <div>{{ form.purchase_size.as_field_group }}</div>
+    <div>{{ form.purchase_price.as_field_group }}</div>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>5. Stock</legend>
+  <div class="form-grid">
+    <div>{{ form.reorder_level.as_field_group }}</div>
+    {% if form.initial_stock %}<div>{{ form.initial_stock.as_field_group }}</div>{% endif %}
+    {% if form.active %}<div>{{ form.active.as_field_group }}</div>{% endif %}
+  </div>
+</fieldset>
+
+<p class="unit-summary" id="unit-summary" hidden></p>
+<script>
+// Résumé en clair du conditionnement saisi, mis à jour pendant la saisie
+(function () {
+  var f = function (id) { return document.getElementById('id_' + id); };
+  var box = document.getElementById('unit-summary');
+  var n = function (id) { return parseInt((f(id) || {}).value || 0, 10) || 0; };
+  var t = function (id) { return ((f(id) || {}).value || '').trim(); };
+  var fmt = function (v) { return Math.round(v).toLocaleString('fr-FR'); };
+  function update() {
+    var unit = t('unit') || 'unité', parts = [];
+    if (n('sale_price')) parts.push('1 ' + unit + ' vendu(e) ' + fmt(n('sale_price')) + ' F');
+    if (t('pack_unit') && n('pack_size') > 1) {
+      parts.push('1 ' + t('pack_unit') + ' = ' + n('pack_size') + ' ' + unit + 's' +
+                 (n('pack_price') ? ', vendue ' + fmt(n('pack_price')) + ' F' : ''));
+    }
+    if (t('purchase_unit') && n('purchase_size') > 1) {
+      var line = '1 ' + t('purchase_unit') + ' = ' + n('purchase_size') + ' ' + unit + 's';
+      if (t('pack_unit') && n('pack_size') > 1 && n('purchase_size') % n('pack_size') === 0) {
+        line += ' = ' + (n('purchase_size') / n('pack_size')) + ' ' + t('pack_unit') + 's';
+      }
+      if (n('purchase_price')) line += ', achetée ' + fmt(n('purchase_price')) + ' F (soit ' + fmt(n('purchase_price') / n('purchase_size')) + ' F par ' + unit + ')';
+      parts.push(line);
+    }
+    box.textContent = parts.length ? 'En résumé : ' + parts.join(' · ') + '.' : '';
+    box.hidden = !parts.length;
+  }
+  ['unit', 'sale_price', 'pack_unit', 'pack_size', 'pack_price', 'purchase_unit', 'purchase_size', 'purchase_price']
+    .forEach(function (id) { if (f(id)) f(id).addEventListener('input', update); });
+  update();
+})();
+</script>

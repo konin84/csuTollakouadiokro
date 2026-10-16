@@ -15,23 +15,35 @@ CONSULTATION = "Consultation"
 ALL_ROLES = [CAISSIER, SUPERVISEUR, PHARMACIE, CONSULTATION]
 
 ROLE_HELP = {
-    CAISSIER: "Saisit les recettes, dépenses et versements du jour, clôture la journée.",
-    SUPERVISEUR: "Valide ou rouvre les journées, corrige les versements, voit le journal d'activité.",
-    PHARMACIE: "Gère les produits, commandes, réceptions et inventaires ; saisit les ventes.",
+    CAISSIER: "Saisit les recettes et dépenses du jour et remet l'argent au superviseur le soir. "
+              "Ne voit pas la pharmacie.",
+    SUPERVISEUR: "Clôture la journée, reçoit l'argent du caissier en la validant et le verse à la banque ; "
+                 "rouvre les journées, voit le journal d'activité.",
+    PHARMACIE: "Gère les produits, commandes, réceptions et inventaires ; rapport de stock. Ne voit pas la caisse.",
     CONSULTATION: "Lecture seule : tableaux de bord et rapports (COGES, district…).",
 }
 
 # droit -> rôles autorisés
 RIGHTS = {
-    "saisie": {CAISSIER, SUPERVISEUR},
-    "ventes": {CAISSIER, PHARMACIE, SUPERVISEUR},
-    "cloture": {CAISSIER, SUPERVISEUR},
+    # consultation des pages : la caisse (journées, reçus) et la pharmacie (stock, commandes)
+    # sont cloisonnées entre caissier et pharmacie ; le superviseur ne voit pas les pages de la pharmacie
+    "caisse": {CAISSIER, SUPERVISEUR, CONSULTATION},
+    "pharmacie": {PHARMACIE, CONSULTATION},
+    "saisie": {CAISSIER},  # reçus des patients (« Nouveau patient »)
+    "ouverture": {CAISSIER, SUPERVISEUR},  # ouvrir une journée de caisse
+    "annulation": {CAISSIER, SUPERVISEUR},  # annuler un reçu, avec un motif
+    "ventes": {CAISSIER},  # ventes de médicaments (bouton « Vente de médicaments »)
+    "depenses": {SUPERVISEUR},  # dépenses payées en espèces : voir, ajouter, supprimer
+    "cloture": {SUPERVISEUR},
     "validation": {SUPERVISEUR},
-    "versement": {CAISSIER, SUPERVISEUR},
+    "banque": {SUPERVISEUR, CONSULTATION},  # consultation des versements bancaires
+    "versement": {SUPERVISEUR},
     "versement_correction": {SUPERVISEUR},
-    "stock": {PHARMACIE, SUPERVISEUR},
-    "rapports": {CAISSIER, SUPERVISEUR, PHARMACIE, CONSULTATION},
+    "stock": {PHARMACIE},
+    "rapports": {CAISSIER, SUPERVISEUR, CONSULTATION},  # rapports de caisse (mensuel, annuel)
+    "rapport_stock": {PHARMACIE, SUPERVISEUR, CONSULTATION},  # le superviseur suit le stock sans gérer la pharmacie
     "journal": {SUPERVISEUR},
+    "actes": {SUPERVISEUR},  # actes médicaux et tarifs : créer, modifier, supprimer
     "parametres": set(),  # administrateurs uniquement
 }
 

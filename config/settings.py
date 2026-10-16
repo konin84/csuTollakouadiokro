@@ -1,5 +1,5 @@
 """
-Paramètres FSU Caisse.
+Paramètres CSU Caisse.
 
 Toute la configuration propre à une installation se fait dans le fichier
 `.env` (à côté de manage.py) ou via des variables d'environnement :
@@ -7,9 +7,9 @@ Toute la configuration propre à une installation se fait dans le fichier
     SECRET_KEY=...            (généré par le script d'installation)
     DEBUG=0
     ALLOWED_HOSTS=*           (réseau local : on accepte toutes les adresses)
-    DATABASE_URL=             (vide = SQLite ; ex. postgres://user:pass@localhost/fsu)
+    DATABASE_URL=             (vide = SQLite ; ex. postgres://user:pass@localhost/fsu_caisse)
     DATA_DIR=                 (dossier des données : base, justificatifs, sauvegardes)
-    BACKUP_COPY_DIR=          (copie supplémentaire des sauvegardes, ex. E:\\SauvegardesFSU)
+    BACKUP_COPY_DIR=          (copie supplémentaire des sauvegardes, ex. E:\\SauvegardesCSU)
     SUPERVISEUR_MOT_DE_PASSE= (mot de passe du compte superviseur créé par init_fsu ;
                                en général saisi pendant installer.ps1, pas conservé ici)
 """

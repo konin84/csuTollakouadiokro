@@ -16,8 +16,8 @@ def sale_to_stock(sender, instance: PharmacySale, **kwargs):
                 "product_id": instance.product_id,
                 "date": instance.session.date,
                 "kind": StockMovement.SALE,
-                "quantity": -int(instance.quantity),
-                "unit_cost": instance.product.purchase_price,
+                "quantity": -int(instance.stock_quantity),
+                "unit_cost": round(instance.product.unit_cost),
                 "reference": f"Caisse du {instance.session.date:%d/%m/%Y}",
             },
         )

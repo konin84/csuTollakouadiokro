@@ -77,10 +77,12 @@ def monthly_workbook(d):
     for r in range(5, last + 1):
         ws.cell(r, 1).number_format = "DD/MM/YYYY"
     r = last + 2
-    for label, value in [("Argent en caisse au début du mois", d["cash_start"]),
+    for label, value in [("Argent non versé au début du mois", d["cash_start"]),
                          ("+ Recette nette du mois", t.net_total),
                          ("− Versements bancaires du mois", d["deposits_total"]),
-                         ("= Argent en caisse à la fin du mois (théorique)", d["cash_end"])]:
+                         ("= Argent non versé à la fin du mois (théorique)", d["cash_end"]),
+                         ("   dont dans la caisse", d["till_end"]),
+                         ("   dont chez le superviseur", d["supervisor_end"])]:
         ws.cell(r, 1, label).font = Font(bold=True)
         c = ws.cell(r, 7, value)
         c.number_format = NUM0
@@ -164,4 +166,37 @@ def annual_workbook(d):
            [[cat] + vals + [tot] for cat, vals, tot in d["expenses"]],
            ["TOTAL"] + [sum(r[1][i] for r in d["expenses"]) for i in range(12)] + [g.expenses_total],
            widths=[40] + [10] * 12 + [12])
+    return _save(wb)
+
+
+def stock_workbook(d):
+    wb = Workbook()
+    sub = f"{d['facility'].name} – {d['month_name']}"
+    t = d["totals"]
+    ws = wb.active
+    ws.title = "Stock par produit"
+    _title(ws, "RAPPORT DE STOCK DE LA PHARMACIE", sub)
+    _table(ws, 4, ["Produit", "Unité", "Stock début", "Entrées", "Vendu", "Pertes",
+                   "Ajustements", "Stock fin", "Seuil d'alerte", "Prix d'achat (unité d'achat)", "Valeur fin", "Ventes (F)"],
+           [[r["product"].name, r["product"].unit, r["opening"], r["entries"], r["sold"], r["lost"],
+             r["adjusted"], r["closing"], r["product"].reorder_level, r["product"].purchase_price,
+             r["closing_value"], r["sales_value"]] for r in d["rows"]],
+           ["TOTAL", "", t["opening"], t["entries"], t["sold"], t["lost"], t["adjusted"], t["closing"],
+            "", "", t["closing_value"], t["sales_value"]],
+           widths=[34, 12] + [12] * 10, num_from=2)
+
+    ws = wb.create_sheet("À commander")
+    _title(ws, "PRODUITS AU SEUIL D'ALERTE OU EN DESSOUS", sub)
+    _table(ws, 4, ["Produit", "Unité", "Stock fin", "Seuil d'alerte", "Vendu dans le mois"],
+           [[r["product"].name, r["product"].unit, r["closing"], r["product"].reorder_level, r["sold"]]
+            for r in d["low"]], widths=[34, 12, 12, 14, 16], num_from=2, zero=True)
+
+    ws = wb.create_sheet("Entrées et sorties")
+    _title(ws, "ENTRÉES, PERTES ET AJUSTEMENTS D'INVENTAIRE", sub)
+    moves = sorted(d["entries"] + d["losses"] + d["adjustments"], key=lambda m: (m.date, m.id))
+    last = _table(ws, 4, ["Date", "Type", "Produit", "Quantité", "Coût unitaire", "Référence", "Remarque"],
+                  [[m.date, m.get_kind_display(), m.product.name, m.quantity, m.unit_cost, m.reference, m.note]
+                   for m in moves], widths=[12, 26, 34, 10, 12, 22, 34], num_from=3, zero=True)
+    for r in range(5, last + 1):
+        ws.cell(r, 1).number_format = "DD/MM/YYYY"
     return _save(wb)

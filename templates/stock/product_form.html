@@ -2,5 +2,5 @@
 {% block title %}Nouveau produit{% endblock %}
 {% block content %}
 <div class="page-head"><div><div class="crumb"><a href="{% url 'product_list' %}">Stock</a></div><h1>Nouveau produit</h1></div></div>
-<div class="card" style="max-width:560px"><form method="post" class="form">{% csrf_token %}{{ form.as_div }}<button class="btn btn-primary">Créer</button></form></div>
+<div class="card" style="max-width:760px"><form method="post" class="form">{% csrf_token %}{% include "stock/_product_fields.html" %}<button class="btn btn-primary">Créer le produit</button></form></div>
 {% endblock %}

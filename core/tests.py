@@ -58,3 +58,42 @@ class SupervisorAccountTests(TestCase):
         user = User.objects.get(username="konin")
         self.assertFalse(user.groups.exists())
         self.assertTrue(user.check_password("perso"))
+
+
+class AuditLogAccessTests(TestCase):
+    """Le journal d'activité est réservé aux administrateurs et au superviseur."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("init_fsu", verbosity=0, stdout=StringIO(), stderr=StringIO())
+
+    def user(self, name, role=None, **flags):
+        user = User.objects.create_user(name, password="x", **flags)
+        if role:
+            user.groups.add(Group.objects.get(name=role))
+        return user
+
+    def test_admin_and_supervisor_see_the_log(self):
+        for user in (self.user("admin", is_superuser=True, is_staff=True), self.user("major", "Superviseur")):
+            self.client.force_login(user)
+            self.assertEqual(self.client.get("/journal/").status_code, 200, user)
+            self.assertContains(self.client.get("/"), 'href="/journal/"')
+
+    def test_other_roles_are_refused(self):
+        for role in ("Caissier", "Pharmacie", "Consultation"):
+            self.client.force_login(self.user(role.lower(), role))
+            self.assertEqual(self.client.get("/journal/").status_code, 403, role)
+            self.assertNotContains(self.client.get("/"), 'href="/journal/"')
+
+
+class UserMenuTests(TestCase):
+    def test_account_menu_top_right(self):
+        call_command("init_fsu", verbosity=0, stdout=StringIO(), stderr=StringIO())
+        user = User.objects.create_user("awa", password="x", first_name="Awa", last_name="KONE")
+        user.groups.add(Group.objects.get(name="Caissier"))
+        self.client.force_login(user)
+        page = self.client.get("/")
+        self.assertContains(page, 'class="user-menu"')
+        self.assertContains(page, "<b>Awa KONE</b><small>Caissier</small>", html=False)
+        self.assertContains(page, 'href="/mot-de-passe/"')
+        self.assertContains(page, 'action="/deconnexion/"')

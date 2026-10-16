@@ -23,8 +23,14 @@
     </dl>
   </div>
   <div class="net"><span>Recette nette du jour</span><strong>{{ totals.net_total|fcfa }}</strong></div>
-  <dl class="sub">
-    <dt>Recette brute (actes + pharmacie)</dt><dd>{{ totals.gross|num0 }}</dd>
+  {# détail pour la comptabilité : recettes des actes et de la pharmacie, puis ce qui en est retiré #}
+  <dl class="sub net-detail">
+    <dt>Actes <span class="small">(consultations, soins, labo, écho…)</span></dt><dd>{{ totals.acts_total|num0 }}</dd>
+    <dt>Pharmacie <span class="small">(médicaments)</span></dt><dd>{{ totals.pharmacy|num0 }}</dd>
+    <dt class="sum">Recette brute</dt><dd class="sum">{{ totals.gross|num0 }}</dd>
+    <dt>− Commissions reversées</dt><dd>{{ totals.commissions_paid|num0 }}</dd>
+    <dt>− Dépenses</dt><dd>{{ totals.expenses_total|num0 }}</dd>
+    <dt class="sum">Recette nette</dt><dd class="sum">{{ totals.net_total|num0 }}</dd>
     {% for name, c in totals.commissions.items %}{% if c.retained %}<dt>dont {{ name }} (conservé)</dt><dd>{{ c.amount|num0 }}</dd>{% endif %}{% endfor %}
   </dl>
 
@@ -33,11 +39,15 @@
     <dl>
       <dt>Le matin</dt><dd>{{ morning_cash|num0 }}</dd>
       <dt>+ Recette nette</dt><dd>{{ totals.net_total|num0 }}</dd>
-      <dt>− Versements du jour</dt><dd>{{ deposits_today_total|num0 }}</dd>
+      {% if deposits_today_total %}<dt>− Versements du jour</dt><dd>{{ deposits_today_total|num0 }}</dd>{% endif %}
       <dt class="sum">Attendu ce soir</dt><dd class="sum {% if expected_cash|neg %}neg{% endif %}">{{ expected_cash|fcfa }}</dd>
       {% if session.counted_cash is not None %}
       <dt>Compté à la clôture</dt><dd>{{ session.counted_cash|fcfa }}</dd>
       <dt>Écart</dt><dd class="{% if session.cash_gap|neg %}neg{% elif session.cash_gap %}pos{% endif %}">{{ session.cash_gap|num0 }}</dd>
+      {% endif %}
+      {% if session.handed_over is not None %}
+      <dt>Remis au superviseur</dt><dd>{{ session.handed_over|fcfa }}</dd>
+      {% if session.handover_gap %}<dt>Écart de remise</dt><dd class="{% if session.handover_gap|neg %}neg{% else %}pos{% endif %}">{{ session.handover_gap|num0 }}</dd>{% endif %}
       {% endif %}
     </dl>
   </div>
@@ -58,11 +68,14 @@
     <div><label for="id_counted_cash">Argent compté dans la caisse (F)</label>
       <input type="number" min="0" step="1" inputmode="numeric" name="counted_cash" id="id_counted_cash" required placeholder="{{ expected_cash }}"></div>
     <div><label for="id_notes">Observations</label><textarea name="notes" id="id_notes" rows="2">{{ session.notes }}</textarea></div>
-    <button class="btn btn-primary" style="width:100%" type="submit" onclick="return confirm('Clôturer la journée ? Elle ne pourra plus être modifiée sans réouverture par le superviseur.')">Clôturer la journée</button>
+    <button class="btn btn-primary" style="width:100%" type="submit" data-confirm="Clôturer la journée ? Elle ne pourra plus être modifiée sans réouverture par le superviseur.">Clôturer la journée</button>
   </form>
   {% endif %}
   {% if session.status == "CLOTUREE" and perms_app.validation %}
-  <form method="post" action="{% url 'session_validate' session.date|date:'Y-m-d' %}" style="margin-top:10px">{% csrf_token %}
+  <form method="post" action="{% url 'session_validate' session.date|date:'Y-m-d' %}" class="form" style="margin-top:10px">{% csrf_token %}
+    <h3>Recevoir l'argent et valider</h3>
+    <div><label for="id_handed_over">Argent reçu du caissier (F)</label>
+      <input type="number" min="0" step="1" inputmode="numeric" name="handed_over" id="id_handed_over" required value="{{ session.counted_cash|default_if_none:'' }}"></div>
     <button class="btn btn-primary" style="width:100%" type="submit">Valider la journée</button>
   </form>
   {% endif %}

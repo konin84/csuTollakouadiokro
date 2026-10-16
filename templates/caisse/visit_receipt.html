@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% load fsu %}
 {% block title %}Reçu {{ visit.number }}{% endblock %}
+{% block body_class %}print-receipt{% endblock %}
 {% block content %}
 <div class="page-head no-print">
   <div><div class="crumb"><a href="{% url 'session_detail' session.date|date:'Y-m-d' %}">Journée du {{ session.date|date:"d/m/Y" }}</a></div>
@@ -8,7 +9,8 @@
     {% if not visit.cancelled %}<button class="btn btn-primary" type="button" onclick="window.print()">Imprimer le reçu</button>{% endif %}
     {% if editable %}
       <a class="btn" href="{% url 'visit_edit' session.date|date:'Y-m-d' visit.id %}">Modifier</a>
-      <a class="btn btn-accent" href="{% url 'visit_new' session.date|date:'Y-m-d' %}">+ Patient suivant</a>
+      {% if visit.is_pharmacy %}<a class="btn btn-accent" href="{% url 'pharmacy_sale_new' session.date|date:'Y-m-d' %}">+ Vente suivante</a>
+      {% else %}<a class="btn btn-accent" href="{% url 'visit_new' session.date|date:'Y-m-d' %}">+ Patient suivant</a>{% endif %}
     {% endif %}
   </div>
 </div>
@@ -32,7 +34,7 @@
     <thead><tr><th>Désignation</th><th class="num">Qté</th><th class="num">P.U.</th><th class="num">Montant</th></tr></thead>
     <tbody>
     {% for a in visit.acts.all %}<tr><td>{{ a.act.name }}</td><td class="num">{{ a.quantity }}</td><td class="num">{{ a.unit_price|num }}</td><td class="num">{{ a.amount|num0 }}</td></tr>{% endfor %}
-    {% for s in visit.sales.all %}<tr><td>{{ s.product.name }}</td><td class="num">{{ s.quantity }}</td><td class="num">{{ s.unit_price|num }}</td><td class="num">{{ s.amount|num0 }}</td></tr>{% endfor %}
+    {% for s in visit.sales.all %}<tr><td>{{ s.product.name }}{% if s.pack %} ({{ s.unit_label }}){% endif %}</td><td class="num">{{ s.quantity }}</td><td class="num">{{ s.unit_price|num }}</td><td class="num">{{ s.amount|num0 }}</td></tr>{% endfor %}
     </tbody>
     <tfoot><tr><td colspan="3">Total payé</td><td class="num">{{ visit.total|fcfa }}</td></tr></tfoot>
   </table>
@@ -40,14 +42,30 @@
   <p class="small muted" style="margin-top:10px">Caissier : {{ visit.created_by.get_full_name|default:visit.created_by.username|default:"—" }} · Merci de votre visite.</p>
 </div>
 
-{% if editable %}
+{% if can_cancel %}
 <details class="card no-print" style="max-width:520px;margin-top:16px">
   <summary class="btn-link" style="color:var(--bad)">Annuler ce reçu</summary>
   <form method="post" action="{% url 'visit_cancel' session.date|date:'Y-m-d' visit.id %}" class="form" style="margin-top:10px">{% csrf_token %}
     <p class="small muted">Le reçu n'est pas supprimé : il reste visible, barré, et n'est plus compté. Les produits reviennent en stock.</p>
     {{ cancel_form.as_div }}
-    <button class="btn btn-danger" onclick="return confirm('Annuler le reçu {{ visit.number }} ?')">Confirmer l'annulation</button>
+    <button class="btn btn-danger" data-confirm="Annuler le reçu {{ visit.number }} ?">Confirmer l'annulation</button>
   </form>
 </details>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+// Rouleau POS 80 mm : la page imprimée a la hauteur du reçu (pas de papier blanc après le ticket).
+(function () {
+  var receipt = document.querySelector('.receipt');
+  var page = document.createElement('style');
+  document.head.appendChild(page);
+  function fit() {
+    var mm = Math.ceil(receipt.getBoundingClientRect().height * 25.4 / 96) + 4;
+    page.textContent = '@page receipt { size: 80mm ' + mm + 'mm; margin: 0; }';
+  }
+  window.addEventListener('beforeprint', fit);
+  fit();
+})();
+</script>
 {% endblock %}

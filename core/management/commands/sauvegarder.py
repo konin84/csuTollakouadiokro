@@ -55,7 +55,7 @@ class Command(BaseCommand):
                         if f.is_file():
                             z.write(f, Path("justificatifs") / f.relative_to(media))
                 z.writestr("LISEZMOI.txt",
-                           "Sauvegarde FSU Caisse du " + datetime.now().strftime("%d/%m/%Y %H:%M") + "\n"
+                           "Sauvegarde CSU Caisse du " + datetime.now().strftime("%d/%m/%Y %H:%M") + "\n"
                            "Restauration : python manage.py restaurer <ce fichier.zip> (serveur arrêté)\n")
 
         size = target.stat().st_size / 1024

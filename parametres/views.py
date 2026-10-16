@@ -7,13 +7,14 @@ from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory
+from caisse.models import Act, ActEntry, ActPrice, BankAccount, CommissionRule, ExpenseCategory
 from core.audit import log
 from core.models import Facility
 from core.roles import can, require
@@ -188,10 +189,10 @@ def user_password(request, pk):
 
 
 # --- Actes et tarifs ------------------------------------------------------------------
-@require("parametres")
+@require("actes")
 def act_list(request):
     today = timezone.localdate()
-    acts = list(Act.objects.select_related("product").prefetch_related("prices"))
+    acts = list(Act.objects.prefetch_related("prices"))
     for act in acts:
         current = [p for p in act.prices.all() if p.valid_from <= today]
         act.current_price = current[0].price if current else None
@@ -199,7 +200,7 @@ def act_list(request):
     return render(request, "parametres/act_list.html", {"acts": acts})
 
 
-@require("parametres")
+@require("actes")
 def act_edit(request, pk=None):
     act = get_object_or_404(Act, pk=pk) if pk else None
     form = ActForm(request.POST or None, instance=act,
@@ -217,7 +218,7 @@ def act_edit(request, pk=None):
 
 
 @require_POST
-@require("parametres")
+@require("actes")
 def act_price_add(request, pk):
     act = get_object_or_404(Act, pk=pk)
     form = ActPriceForm(request.POST, act=act)
@@ -234,7 +235,7 @@ def act_price_add(request, pk):
 
 
 @require_POST
-@require("parametres")
+@require("actes")
 def act_price_delete(request, pk, price_id):
     price = get_object_or_404(ActPrice, pk=price_id, act_id=pk)
     if price.valid_from <= timezone.localdate():
@@ -243,3 +244,19 @@ def act_price_delete(request, pk, price_id):
         price.delete()
         messages.success(request, "Tarif à venir supprimé.")
     return redirect("param_act", pk=pk)
+
+
+@require_POST
+@require("actes")
+def act_delete(request, pk):
+    """Supprime un acte jamais utilisé ; un acte déjà facturé se désactive (l'historique reste juste)."""
+    act = get_object_or_404(Act, pk=pk)
+    if act.has_been_charged():
+        messages.error(request, f"« {act.name} » a déjà été facturé : il ne peut pas être supprimé. "
+                                "Décochez « Actif » pour ne plus le proposer.")
+        return redirect("param_act", pk=pk)
+    with transaction.atomic():
+        ActEntry.objects.filter(act=act).delete()  # lignes vides des journées
+        act.delete()
+    messages.success(request, f"Acte « {act.name} » supprimé.")
+    return redirect("param_acts")

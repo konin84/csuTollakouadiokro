@@ -3,7 +3,7 @@ tarifs, règles de commission, catégories de dépenses, comptes bancaires.
 
 La commande peut être relancée sans risque : elle ne crée que ce qui manque.
 
-    python manage.py init_fsu --nom "FSU COM KOTTIAKOFFIKRO" --demarrage 2026-01-01
+    python manage.py init_fsu --nom "Centre de Santé Urbain (CSU) de Tollakouadiokro" --demarrage 2026-01-01
 
 Compte superviseur : créé seulement si aucun utilisateur n'a le rôle Superviseur.
 Identifiant « konin » par défaut (--superviseur) ; mot de passe : --mot-de-passe-superviseur,
@@ -17,7 +17,7 @@ from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand
 
 from caisse.models import (FUND_ENTREE, FUND_PHARMA, Act, ActPrice, BankAccount, CommissionRule,
-                           ExpenseCategory)
+                           ExpenseCategory, name_key)
 from core.models import Facility
 from core.roles import ALL_ROLES, SUPERVISEUR
 
@@ -41,7 +41,6 @@ ACTS = [
     ("bandelette-urinaire", "Bandelette urinaire", "SOINS", FUND_ENTREE, "QTE", False, 100),
     ("ambulance", "Ambulance", "TRANSPORT", FUND_ENTREE, "QTE", False, 3000),
     ("avortement-spontane", "Avortement spontané", "MATERNITE", FUND_ENTREE, "QTE", False, 3000),
-    ("laboratoire", "Laboratoire", "LABO", FUND_ENTREE, "MONTANT", True, None),
 ]
 
 EXPENSE_CATEGORIES = [
@@ -63,7 +62,7 @@ class Command(BaseCommand):
     help = "Initialise les données de base de l'application (sans écraser l'existant)."
 
     def add_arguments(self, parser):
-        parser.add_argument("--nom", default="FSU COM KOTTIAKOFFIKRO", help="Nom de l'établissement")
+        parser.add_argument("--nom", default="Centre de Santé Urbain (CSU) de Tollakouadiokro", help="Nom de l'établissement")
         parser.add_argument("--demarrage", default="2026-01-01",
                             help="Date à partir de laquelle les tarifs et commissions s'appliquent (AAAA-MM-JJ)")
         parser.add_argument("--superviseur", default="konin",
@@ -86,6 +85,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"Établissement créé : {opts['nom']}")
 
         for order, (code, name, cat, fund, mode, is_lab, price) in enumerate(ACTS, start=1):
+            if Act.objects.filter(name_key=name_key(name)).exclude(code=code).exists():
+                continue  # même libellé déjà créé dans les Paramètres (autre code) : pas de doublon
             act, created = Act.objects.get_or_create(
                 code=code,
                 defaults=dict(name=name, category=cat, fund=fund, entry_mode=mode, is_lab=is_lab, order=order * 10),

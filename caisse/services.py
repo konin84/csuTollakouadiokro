@@ -181,10 +181,21 @@ def period_totals(start: date, end: date, facility=None):
     return total, days
 
 
-def deposits_total(start: date, end: date, facility=None) -> int:
+def deposits_total(start: date, end: date, facility=None, from_till=None) -> int:
+    """Versements bancaires de la période ; from_till=True/False : seulement ceux faits depuis la caisse /
+    depuis les remises reçues par le superviseur."""
     facility = facility or Facility.current()
-    return (Deposit.objects.filter(facility=facility, date__gte=start, date__lte=end)
-            .aggregate(s=Sum("amount"))["s"] or 0)
+    qs = Deposit.objects.filter(facility=facility, date__gte=start, date__lte=end)
+    if from_till is not None:
+        qs = qs.filter(from_till=from_till)
+    return qs.aggregate(s=Sum("amount"))["s"] or 0
+
+
+def handovers_total(start: date, end: date, facility=None) -> int:
+    """Argent remis par le caissier au superviseur (journées validées de la période)."""
+    facility = facility or Facility.current()
+    return (CashSession.objects.filter(facility=facility, date__gte=start, date__lte=end)
+            .aggregate(s=Sum("handed_over"))["s"] or 0)
 
 
 def deposits_by_account(start: date, end: date, facility=None):
@@ -196,17 +207,32 @@ def deposits_by_account(start: date, end: date, facility=None):
              else f'{r["account__bank"]} – {r["account__name"]}', "amount": r["s"] or 0} for r in rows]
 
 
-def cash_balance(upto: date, facility=None, include_day=True) -> int:
-    """Argent qui devrait se trouver physiquement en caisse après la journée `upto`
-    (ou le matin, si include_day=False) :
-    argent au démarrage + recettes nettes − versements bancaires."""
-    facility = facility or Facility.current()
+def _since_opening(upto: date, facility, include_day):
     start = facility.opening_date or date(2000, 1, 1)
     end = upto if include_day else upto - timedelta(days=1)
+    return start, end
+
+
+def cash_balance(upto: date, facility=None, include_day=True) -> int:
+    """Argent qui devrait se trouver physiquement dans la caisse (chez le caissier) après la journée `upto`
+    (ou le matin, si include_day=False) :
+    argent au démarrage + recettes nettes − remises au superviseur − versements faits depuis la caisse."""
+    facility = facility or Facility.current()
+    start, end = _since_opening(upto, facility, include_day)
     if end < start:
         return facility.opening_cash
     total, _ = period_totals(start, end, facility)
-    return facility.opening_cash + total.net_total - deposits_total(start, end, facility)
+    return (facility.opening_cash + total.net_total - handovers_total(start, end, facility)
+            - deposits_total(start, end, facility, from_till=True))
+
+
+def supervisor_balance(upto: date, facility=None, include_day=True) -> int:
+    """Argent gardé par le superviseur, pas encore versé : remises reçues − versements faits par lui."""
+    facility = facility or Facility.current()
+    start, end = _since_opening(upto, facility, include_day)
+    if end < start:
+        return 0
+    return handovers_total(start, end, facility) - deposits_total(start, end, facility, from_till=False)
 
 
 def month_bounds(year: int, month: int):
@@ -226,6 +252,15 @@ def acts_for_display(totals_list=()):
         used.update(k for k, v in t.acts_amount.items() if v)
     qs = Act.objects.filter(active=True) | Act.objects.filter(id__in=used)
     return list(qs.distinct().order_by("order", "name"))
+
+
+def legacy_lab_act():
+    """Acte « Laboratoire » des journées importées de l'ancien tableau Excel, où le laboratoire était un montant
+    global par jour. Inactif : à la caisse, chaque examen est un acte avec son propre prix."""
+    act, _ = Act.objects.get_or_create(code="laboratoire", defaults=dict(
+        name="Laboratoire (import Excel)", category="LABO", fund=FUND_ENTREE, entry_mode=Act.MODE_AMOUNT,
+        is_lab=True, active=False, order=900))
+    return act
 
 
 def ensure_entries(session: CashSession):
@@ -279,31 +314,6 @@ def visit_act_totals(session: CashSession):
     return out
 
 
-def sync_consumption(session: CashSession, act: Act):
-    """Met à jour la sortie de stock du produit consommé par un acte, pour la journée :
-    (nombre saisi dans la grille + nombre des passages) × quantité par acte."""
-    from stock.models import StockMovement
-
-    entry = ActEntry.objects.filter(session=session, act=act).first()
-    if act.product_id is None:
-        if entry:
-            StockMovement.objects.filter(act_entry=entry).delete()
-        return
-    if entry is None:
-        entry = ActEntry.objects.create(session=session, act=act, quantity=0,
-                                        unit_price=act.price_on(session.date) if act.by_quantity else None)
-    used = entry.quantity + visit_act_totals(session)[act.id][0]
-    qty = used * act.product_quantity
-    if not qty:
-        StockMovement.objects.filter(act_entry=entry).delete()
-        return
-    StockMovement.objects.update_or_create(act_entry=entry, defaults={
-        "product_id": act.product_id, "date": session.date, "kind": StockMovement.CONSUMPTION,
-        "quantity": -qty, "unit_cost": act.product.purchase_price,
-        "reference": f"{act.name} – caisse du {session.date:%d/%m/%Y}",
-    })
-
-
 def product_stock(product_ids):
     from stock.models import StockMovement
 
@@ -320,7 +330,8 @@ def save_visit(session, patient, act_lines, product_lines, user, visit=None):
     """Crée ou remplace un passage.
 
     patient : dict des champs du patient ; act_lines : [(Act, nombre, montant saisi ou None)] ;
-    product_lines : [(Product, quantité)]. Lève VisitError (liste de messages) si la saisie est invalide.
+    product_lines : [(Product, quantité, vendu par l'autre unité du produit (ex. plaquette))].
+    Lève VisitError (liste de messages) si la saisie est invalide.
     """
     from django.db import transaction
 
@@ -339,33 +350,37 @@ def save_visit(session, patient, act_lines, product_lines, user, visit=None):
                 continue
             acts.append((act, 1, None, amount))
 
-    wanted = defaultdict(int)
-    for product, qty in product_lines:
-        if not product.sale_price:
-            errors.append(f"Le prix de vente de « {product.name} » n'est pas défini (voir Stock).")
-        wanted[product] += qty
+    lines = defaultdict(int)  # (produit, par l'autre unité) -> quantité vendue
+    for product, qty, pack in product_lines:
+        pack = pack and product.has_pack
+        if not (product.pack_price if pack else product.sale_price):
+            unit = f" par {product.pack_unit}" if pack else ""
+            errors.append(f"Le prix de vente de « {product.name} »{unit} n'est pas défini (voir Stock).")
+        lines[(product, pack)] += qty
+    wanted = defaultdict(int)  # produit -> unités de stock
+    for (product, pack), qty in lines.items():
+        wanted[product] += qty * (product.pack_size if pack else 1)
     if session.facility.block_negative_stock and wanted:
         stock = product_stock([p.id for p in wanted])
         already = defaultdict(int)  # quantités déjà sur ce reçu (modification) : elles reviennent en stock
         if visit:
             for s in visit.sales.all():
-                already[s.product_id] += s.quantity
+                already[s.product_id] += s.stock_quantity
         for product, qty in wanted.items():
             available = stock.get(product.id, 0) + already[product.id]
             if qty > available:
-                errors.append(f"Stock insuffisant pour « {product.name} » : {max(available, 0)} disponible(s). "
-                              "Si le stock réel est différent, faites un inventaire.")
+                errors.append(f"Stock insuffisant pour « {product.name} » : {max(available, 0)} {product.unit}(s) "
+                              "disponible(s). Si le stock réel est différent, faites un inventaire.")
     if not acts and not wanted:
-        errors.append("Ajoutez au moins un acte ou un produit.")
+        errors.append("Ajoutez au moins un produit." if patient.get("kind") == Visit.PHARMACY
+                      else "Ajoutez au moins un acte ou un produit.")
     if errors:
         raise VisitError(errors)
 
     with transaction.atomic():
-        touched = set()
         if visit is None:
             visit = Visit(session=session, created_by=user, number=Visit.next_number(session.date))
         else:
-            touched.update(visit.acts.values_list("act_id", flat=True))
             visit.acts.all().delete()
             visit.sales.all().delete()
         for field, value in patient.items():
@@ -373,12 +388,11 @@ def save_visit(session, patient, act_lines, product_lines, user, visit=None):
         visit.save()
         for act, qty, price, amount in acts:
             VisitAct.objects.create(visit=visit, act=act, quantity=qty, unit_price=price, amount=amount)
-            touched.add(act.id)
-        for product, qty in wanted.items():
-            PharmacySale.objects.create(session=session, visit=visit, product=product, quantity=qty,
-                                        unit_price=product.sale_price, description=f"Reçu {visit.number}")
-        for act in Act.objects.filter(id__in=touched).select_related("product"):
-            sync_consumption(session, act)
+        for (product, pack), qty in lines.items():
+            PharmacySale.objects.create(
+                session=session, visit=visit, product=product, quantity=qty, pack=pack,
+                units_per_item=product.pack_size if pack else 1,
+                unit_price=product.pack_price if pack else product.sale_price, description=f"Reçu {visit.number}")
     return visit
 
 
@@ -393,5 +407,3 @@ def cancel_visit(visit, reason, user):
         visit.cancelled_at = timezone.now()
         visit.save()
         visit.sales.all().delete()  # les produits reviennent en stock
-        for act in Act.objects.filter(visitact__visit=visit).distinct().select_related("product"):
-            sync_consumption(visit.session, act)

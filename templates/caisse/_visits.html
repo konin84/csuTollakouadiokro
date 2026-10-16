@@ -7,16 +7,25 @@
   <div class="table-wrap"><table class="data">
     <thead><tr><th>Reçu</th><th class="hide-sm">Heure</th><th>Patient</th><th class="hide-sm">Actes et produits</th><th class="num">Montant</th></tr></thead>
     <tbody>
-    {% for v in visits %}
+    {% for v in visits_page %}
       <tr{% if v.cancelled %} class="muted"{% endif %}>
         <td class="nowrap"><a href="{% url 'visit_receipt' session.date|date:'Y-m-d' v.id %}">{{ v.number }}</a></td>
         <td class="hide-sm muted">{{ v.created_at|time:"H:i" }}</td>
-        <td>{% if v.cancelled %}<s>{{ v.patient_name }}</s> <span class="badge badge-ANNULEE">Annulé</span>{% else %}{{ v.patient_name }}{% endif %}
+        <td>{% if v.cancelled %}<s>{{ v.patient_name }}</s> <span class="badge badge-ANNULEE">Annulé</span>{% else %}{{ v.patient_name }}{% endif %}{% if v.is_pharmacy %} <span class="badge badge-fund">Pharmacie</span>{% endif %}
           {% if v.age is not None or v.sex %}<span class="small muted">({% if v.sex %}{{ v.sex }}{% endif %}{% if v.age is not None %}{% if v.sex %}, {% endif %}{{ v.age }} ans{% endif %})</span>{% endif %}</td>
-        <td class="hide-sm small">{% for a in v.acts.all %}{{ a.act.name }}{% if a.quantity > 1 %} ×{{ a.quantity }}{% endif %}{% if not forloop.last or v.sales.all %}, {% endif %}{% endfor %}{% for s in v.sales.all %}{{ s.product.name }} ×{{ s.quantity }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+        <td class="hide-sm small">{% for a in v.acts.all %}{{ a.act.name }}{% if a.quantity > 1 %} ×{{ a.quantity }}{% endif %}{% if not forloop.last or v.sales.all %}, {% endif %}{% endfor %}{% for s in v.sales.all %}{{ s.product.name }} ×{{ s.quantity }}{% if s.pack %} {{ s.unit_label }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
         <td class="num strong">{% if v.cancelled %}<s>{{ v.total|num0 }}</s>{% else %}{{ v.total|num0 }}{% endif %}</td>
       </tr>
     {% empty %}<tr><td colspan="5" class="muted">Aucun patient enregistré.{% if editable %} Cliquez sur « Nouveau patient » à chaque passage à la caisse.{% endif %}</td></tr>{% endfor %}
     </tbody>
   </table></div>
+  {% if visits_page.has_other_pages %}
+  <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+    {% with base=request.path %}
+    {% if visits_page.has_previous %}<a class="btn btn-sm" href="{{ base }}?patients={{ visits_page.previous_page_number }}" hx-get="{{ base }}?patients={{ visits_page.previous_page_number }}" hx-select="#visits" hx-target="#visits" hx-swap="outerHTML" hx-push-url="true">← Plus récents</a>{% endif %}
+    <span class="muted small">Patients {{ visits_page.start_index }}–{{ visits_page.end_index }} sur {{ visits_page.paginator.count }}</span>
+    {% if visits_page.has_next %}<a class="btn btn-sm" href="{{ base }}?patients={{ visits_page.next_page_number }}" hx-get="{{ base }}?patients={{ visits_page.next_page_number }}" hx-select="#visits" hx-target="#visits" hx-swap="outerHTML" hx-push-url="true">Plus anciens →</a>{% endif %}
+    {% endwith %}
+  </div>
+  {% endif %}
 </section>

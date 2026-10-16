@@ -11,16 +11,18 @@
     {% endif %}
   </div>
 </div>
-<form class="card form-grid no-print" method="get" style="margin-bottom:14px">
-  <div class="wide"><label>Recherche</label><input type="search" name="q" value="{{ q }}" placeholder="Nom ou code du produit"></div>
+{# recherche dynamique : la liste se met à jour pendant la saisie (htmx), sans recharger la page #}
+<form class="card form-grid no-print" method="get" style="margin-bottom:14px"
+      hx-get="{% url 'product_list' %}" hx-trigger="input changed delay:250ms from:[name=q], search from:[name=q], change from:[name=voir], submit"
+      hx-target="#products" hx-select="#products" hx-swap="outerHTML" hx-push-url="true">
+  <div class="wide"><label>Recherche</label><input type="search" name="q" value="{{ q }}" placeholder="Nom ou code du produit" autocomplete="off" autofocus></div>
   <div><label>Afficher</label><select name="voir">
     <option value="actifs" {% if show == "actifs" %}selected{% endif %}>Produits actifs</option>
     <option value="alerte" {% if show == "alerte" %}selected{% endif %}>Sous le seuil d'alerte</option>
     <option value="tous" {% if show == "tous" %}selected{% endif %}>Tous</option>
   </select></div>
-  <div><button class="btn btn-primary">Afficher</button></div>
 </form>
-<div class="card">
+<div class="card" id="products">
   <div class="card-head"><h2>{{ products|length }} produit(s)</h2><span class="muted">Valeur du stock (prix d'achat) : <b>{{ stock_value|fcfa }}</b></span></div>
   <div class="table-wrap"><table class="data">
     <thead><tr><th>Produit</th><th>Forme</th><th class="num">En stock</th><th class="num">Seuil</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th></th></tr></thead>
@@ -29,13 +31,13 @@
       <tr>
         <td><a href="{% url 'product_detail' p.id %}">{{ p.name }}</a>{% if not p.active %} <span class="muted small">(inactif)</span>{% endif %}</td>
         <td class="muted">{{ p.get_form_display }}</td>
-        <td class="num strong">{{ p.qty|default:0 }} <span class="muted small">{{ p.unit }}</span></td>
+        <td class="num strong">{{ p.qty|default:0 }} <span class="muted small">{{ p.unit }}</span>{% with d=p.qty|stock_describe:p %}{% if d %}<div class="small muted" style="font-weight:400">{{ d }}</div>{% endif %}{% endwith %}</td>
         <td class="num">{{ p.reorder_level|num }}</td>
-        <td class="num">{{ p.purchase_price|num }}</td>
-        <td class="num">{% if p.sale_price %}{{ p.sale_price|num }}{% else %}<span class="muted small">à définir</span>{% endif %}</td>
+        <td class="num">{{ p.purchase_price|num }}{% if p.purchase_unit %} <span class="muted small">/ {{ p.purchase_unit }}</span>{% endif %}</td>
+        <td class="num">{% if p.sale_price %}{{ p.sale_price|num }}{% if p.has_pack %} <span class="muted small">/ {{ p.unit }}</span><div class="small">{{ p.pack_price|num }} <span class="muted">/ {{ p.pack_unit }}</span></div>{% endif %}{% else %}<span class="muted small">à définir</span>{% endif %}</td>
         <td>{% if p.reorder_level and p.qty|default:0 <= p.reorder_level %}<span class="badge badge-low">À commander</span>{% endif %}</td>
       </tr>
-    {% empty %}<tr><td colspan="7" class="muted">Aucun produit.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="7" class="muted">{% if q %}Aucun produit ne correspond à « {{ q }} ».{% else %}Aucun produit.{% endif %}</td></tr>{% endfor %}
     </tbody>
   </table></div>
 </div>

@@ -1,9 +1,9 @@
 {% extends "base.html" %}{% load fsu %}
-{% block title %}{% if visit %}Reçu {{ visit.number }}{% else %}Nouveau patient{% endif %}{% endblock %}
+{% block title %}{% if visit %}Reçu {{ visit.number }}{% elif pharmacy %}Vente de médicaments{% else %}Nouveau patient{% endif %}{% endblock %}
 {% block content %}
 <div class="page-head"><div>
   <div class="crumb"><a href="{% url 'session_detail' session.date|date:'Y-m-d' %}">Journée du {{ session.date|date:"d/m/Y" }}</a></div>
-  <h1>{% if visit %}Modifier le reçu {{ visit.number }}{% else %}Nouveau patient{% endif %}</h1>
+  <h1>{% if visit %}Modifier le reçu {{ visit.number }}{% elif pharmacy %}Vente de médicaments{% else %}Nouveau patient{% endif %}</h1>
 </div></div>
 
 {% if errors %}<div class="alert alert-error"><ul class="alerts">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
@@ -12,7 +12,7 @@
 <div class="split">
   <div class="stack">
     <section class="card">
-      <h2>Patient</h2>
+      <h2>{% if pharmacy %}Client{% else %}Patient{% endif %}</h2>
       <div class="form-grid">
         <div class="wide"><label for="{{ form.patient_name.id_for_label }}">{{ form.patient_name.label|capfirst }}</label>{{ form.patient_name }}{{ form.patient_name.errors }}</div>
         <div><label for="{{ form.phone.id_for_label }}">Téléphone</label>{{ form.phone }}{{ form.phone.errors }}</div>
@@ -22,6 +22,7 @@
       <div id="patient-suggestions" class="suggestions" hidden></div>
     </section>
 
+    {% if not pharmacy %}
     <section class="card">
       <div class="card-head"><h2>Actes</h2><button type="button" class="btn btn-sm" data-add="act">+ Ajouter un acte</button></div>
       <div class="table-wrap"><table class="data">
@@ -40,20 +41,22 @@
         {% endfor %}
         </tbody>
       </table></div>
-      <p class="small muted" style="margin-top:6px">Le prix est celui du tarif en vigueur le {{ session.date|date:"d/m/Y" }}. Pour le laboratoire, saisissez le montant.</p>
+      <p class="small muted" style="margin-top:6px">Le prix est celui du tarif en vigueur le {{ session.date|date:"d/m/Y" }}.</p>
     </section>
+    {% endif %}
 
     <section class="card">
-      <div class="card-head"><h2>Produits (pharmacie)</h2><button type="button" class="btn btn-sm" data-add="product">+ Ajouter un produit</button></div>
+      <div class="card-head"><h2>{% if pharmacy %}Médicaments{% else %}Produits (pharmacie){% endif %}</h2><button type="button" class="btn btn-sm" data-add="product">+ Ajouter un produit</button></div>
       <div class="table-wrap"><table class="data">
-        <thead><tr><th>Produit</th><th class="num">Stock</th><th class="num">Prix</th><th class="num">Quantité</th><th class="num">Montant</th><th></th></tr></thead>
+        <thead><tr><th>Produit</th><th class="num">Stock</th><th>Vendu par</th><th class="num">Prix</th><th class="num">Quantité</th><th class="num">Montant</th><th></th></tr></thead>
         <tbody id="product-rows">
         {% for r in rows.products %}
           <tr class="line product-line">
             <td><select name="product" class="product-select"><option value="">— Choisir un produit —</option>
-              {% for p in products %}<option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock }}" data-unit="{{ p.unit }}" {% if p.id == r.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+              {% for p in products %}<option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock }}" data-unit="{{ p.unit }}" data-pack-unit="{{ p.pack_unit }}" data-pack-size="{{ p.pack_size }}" data-pack-price="{{ p.pack_price }}" {% if p.id == r.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
             </select></td>
             <td class="num stock-cell"></td>
+            <td><select name="product_unit" class="unit-select" data-selected="{{ r.unit|default:'unite' }}"></select></td>
             <td class="num muted price-cell"></td>
             <td class="num"><input type="number" name="product_qty" class="qty" min="1" step="1" inputmode="numeric" value="{{ r.qty|default:1 }}"></td>
             <td class="num amount-cell"></td>
@@ -92,9 +95,10 @@
 <template id="product-template">
   <tr class="line product-line">
     <td><select name="product" class="product-select"><option value="">— Choisir un produit —</option>
-      {% for p in products %}<option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock }}" data-unit="{{ p.unit }}">{{ p.name }}</option>{% endfor %}
+      {% for p in products %}<option value="{{ p.id }}" data-price="{{ p.price }}" data-stock="{{ p.stock }}" data-unit="{{ p.unit }}" data-pack-unit="{{ p.pack_unit }}" data-pack-size="{{ p.pack_size }}" data-pack-price="{{ p.pack_price }}">{{ p.name }}</option>{% endfor %}
     </select></td>
     <td class="num stock-cell"></td>
+    <td><select name="product_unit" class="unit-select" data-selected="unite"></select></td>
     <td class="num muted price-cell"></td>
     <td class="num"><input type="number" name="product_qty" class="qty" min="1" step="1" inputmode="numeric" value="1"></td>
     <td class="num amount-cell"></td>
@@ -108,6 +112,22 @@
   var form = document.getElementById('visit-form');
   var fmt = function (n) { return Math.round(n).toLocaleString('fr-FR'); };
   function opt(row) { var s = row.querySelector('select'); return s.options[s.selectedIndex]; }
+
+  // unités proposées pour le produit choisi : unité de stock, et l'autre unité de vente s'il en a une
+  function syncUnits(row, o) {
+    var sel = row.querySelector('.unit-select');
+    if (sel.dataset.product !== o.value) {
+      var wanted = sel.value || sel.dataset.selected;
+      sel.innerHTML = '';
+      if (o.value) {
+        sel.add(new Option(o.dataset.unit, 'unite'));
+        if (o.dataset.packUnit) sel.add(new Option(o.dataset.packUnit + ' (' + o.dataset.packSize + ' ' + o.dataset.unit + ')', 'pack'));
+        sel.value = wanted === 'pack' && o.dataset.packUnit ? 'pack' : 'unite';
+      }
+      sel.dataset.product = o.value;
+    }
+    return sel.value === 'pack';
+  }
 
   function refresh() {
     var total = 0;
@@ -129,9 +149,12 @@
     form.querySelectorAll('.product-line').forEach(function (row) {
       var o = opt(row), q = parseInt(row.querySelector('[name=product_qty]').value || 0, 10);
       var stock = row.querySelector('.stock-cell'), price = row.querySelector('.price-cell'), amount = row.querySelector('.amount-cell');
+      var pack = syncUnits(row, o);
       if (!o.value) { stock.textContent = price.textContent = amount.textContent = ''; return; }
-      var s = parseInt(o.dataset.stock, 10), p = parseInt(o.dataset.price, 10);
-      stock.innerHTML = (q > s ? '<span class="badge badge-low">' : '') + fmt(s) + ' ' + o.dataset.unit + (q > s ? '</span>' : '');
+      // stock compté en unités de stock (ex. comprimés) ; une plaquette en retire pack-size
+      var s = parseInt(o.dataset.stock, 10), size = pack ? parseInt(o.dataset.packSize, 10) : 1;
+      var p = parseInt(pack ? o.dataset.packPrice : o.dataset.price, 10), short = q * size > s;
+      stock.innerHTML = (short ? '<span class="badge badge-low">' : '') + fmt(s) + ' ' + o.dataset.unit + (short ? '</span>' : '');
       price.innerHTML = p ? fmt(p) : '<span class="neg">pas de prix</span>';
       amount.textContent = fmt(p * q); total += p * q;
     });

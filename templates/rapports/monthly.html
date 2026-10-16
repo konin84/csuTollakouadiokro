@@ -24,7 +24,7 @@
   <div class="table-wrap"><table class="data compact">
     {% if detail %}
     <thead><tr><th>Date</th>{% for a in acts %}<th class="num">{{ a.name }}</th>{% endfor %}<th class="num">Pharmacie</th><th class="num">Total</th></tr></thead>
-    <tbody>{% for s, t in days %}<tr><td class="nowrap"><a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"d/m" }}</a></td>{% for a in acts %}<td class="num">{{ t.acts_amount|get:a.id|num }}</td>{% endfor %}<td class="num">{{ t.pharmacy|num }}</td><td class="num strong">{{ t.gross|num0 }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for s, t in days %}<tr><td class="nowrap">{% if perms_app.caisse %}<a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"d/m" }}</a>{% else %}{{ s.date|date:"d/m" }}{% endif %}</td>{% for a in acts %}<td class="num">{{ t.acts_amount|get:a.id|num }}</td>{% endfor %}<td class="num">{{ t.pharmacy|num }}</td><td class="num strong">{{ t.gross|num0 }}</td></tr>{% endfor %}</tbody>
     <tfoot>
       <tr><td>Montant</td>{% for a in acts %}<td class="num">{{ total.acts_amount|get:a.id|num0 }}</td>{% endfor %}<td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td></tr>
       <tr><td>Nombre</td>{% for a in acts %}<td class="num">{% if a.by_quantity %}{{ total.acts_qty|get:a.id|num0 }}{% endif %}</td>{% endfor %}<td></td><td></td></tr>
@@ -32,7 +32,7 @@
     {% else %}
     <thead><tr><th>Date</th><th class="num">Patients</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net Entrées+Labo</th><th class="num">Net Pharma+Écho</th><th class="num">Net</th><th>Statut</th></tr></thead>
     <tbody>{% for s, t in days %}<tr>
-      <td class="nowrap"><a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"D d/m" }}</a></td>
+      <td class="nowrap">{% if perms_app.caisse %}<a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"D d/m" }}</a>{% else %}{{ s.date|date:"D d/m" }}{% endif %}</td>
       <td class="num">{{ t.patients|num }}</td><td class="num">{{ t.entries_excl_lab|num }}</td><td class="num">{{ t.lab|num }}</td><td class="num">{{ t.echo|num }}</td><td class="num">{{ t.pharmacy|num }}</td>
       <td class="num">{{ t.gross|num0 }}</td><td class="num">{{ t.commissions_paid|num }}</td><td class="num">{{ t.expenses_total|num }}</td>
       <td class="num {% if t.net_entree|neg %}neg{% endif %}">{{ t.net_entree|num0 }}</td><td class="num {% if t.net_pharma|neg %}neg{% endif %}">{{ t.net_pharma|num0 }}</td><td class="num strong">{{ t.net_total|num0 }}</td>
@@ -66,12 +66,14 @@
       </tbody>{% if expenses_by_category %}<tfoot><tr><td>Total</td><td class="num">{{ total.expenses_total|num0 }}</td></tr></tfoot>{% endif %}</table>
     </div>
     <div class="card">
-      <h2>Argent en caisse et versements</h2>
+      <h2>Argent non versé et versements</h2>
       <table class="data compact"><tbody>
-        <tr><td>Argent en caisse au 1er du mois</td><td class="num">{{ cash_start|num0 }}</td></tr>
+        <tr><td>Argent non versé au 1er du mois</td><td class="num">{{ cash_start|num0 }}</td></tr>
         <tr><td>+ Recette nette du mois</td><td class="num">{{ total.net_total|num0 }}</td></tr>
         {% for d in deposits %}<tr><td class="muted">− Versement {{ d.account }} du {{ d.date|date:"d/m" }}{% if d.reference %} ({{ d.reference }}){% endif %}</td><td class="num">{{ d.amount|num0 }}</td></tr>{% endfor %}
-        <tr class="total"><td>Argent en caisse en fin de mois (théorique)</td><td class="num">{{ cash_end|num0 }}</td></tr>
+        <tr class="total"><td>Argent non versé en fin de mois (théorique)</td><td class="num">{{ cash_end|num0 }}</td></tr>
+        <tr><td class="muted">dont dans la caisse</td><td class="num">{{ till_end|num0 }}</td></tr>
+        <tr><td class="muted">dont chez le superviseur</td><td class="num">{{ supervisor_end|num0 }}</td></tr>
       </tbody></table>
     </div>
   </div>

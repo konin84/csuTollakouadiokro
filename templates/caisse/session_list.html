@@ -8,7 +8,7 @@
       <a class="btn btn-sm" href="?mois={{ prev_month|date:'Y-m' }}">← {{ prev_month|date:"M Y" }}</a>
       <a class="btn btn-sm" href="?mois={{ next_month|date:'Y-m' }}">{{ next_month|date:"M Y" }} →</a>
     </span>
-    {% if perms_app.saisie %}
+    {% if perms_app.ouverture %}
     <form method="post" action="{% url 'session_open' %}" style="display:flex;gap:6px">{% csrf_token %}
       <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" style="width:auto">
       <button class="btn btn-primary">Ouvrir / saisir</button>

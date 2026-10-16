@@ -24,7 +24,7 @@ from django.db import transaction
 
 from caisse.models import (FUND_ENTREE, FUND_PHARMA, Act, ActEntry, ActPrice, BankAccount, CashSession, Deposit,
                            Expense, ExpenseCategory, PharmacySale)
-from caisse.services import clear_caches, month_bounds, period_totals
+from caisse.services import clear_caches, legacy_lab_act, month_bounds, period_totals
 from core.audit import log
 from core.models import Facility
 
@@ -293,7 +293,9 @@ class Command(BaseCommand):
                 amount = values.get(header, 0)
                 if not amount:
                     continue
-                act = acts[code]
+                act = acts.get(code)
+                if act is None and code == "laboratoire":
+                    act = acts[code] = legacy_lab_act()
                 if not act.by_quantity:
                     e = ActEntry(session=session, act=act, quantity=0, amount=amount, manual_amount=True)
                 else:
@@ -333,7 +335,7 @@ class Command(BaseCommand):
             self.notes.append(f"{label} : {len(wrong_dates)} lignes avaient une date erronée "
                               f"(ex. {wrong_dates[0]:%d/%m/%Y}) → date reprise du mois de la feuille")
         for d in deposits:
-            Deposit.objects.create(facility=facility, **d)
+            Deposit.objects.create(facility=facility, from_till=True, **d)
 
         clear_caches()
         total, _days = period_totals(start, end, facility)

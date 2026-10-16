@@ -1,4 +1,4 @@
-# FSU Caisse – Guide d'installation sur le réseau local (Windows)
+# CSU Caisse – Guide d'installation sur le réseau local (Windows)
 
 L'application tourne sur **un PC Windows du centre** (le « serveur »). Les autres postes,
 tablettes et téléphones connectés au même réseau (câble ou Wi-Fi) l'ouvrent simplement dans
@@ -27,11 +27,11 @@ leur navigateur. **Aucune connexion Internet n'est nécessaire** au fonctionneme
 
 ---
 
-## 3. Installer FSU Caisse
+## 3. Installer CSU Caisse
 
-1. Copier le dossier `fsu-caisse` sur le PC serveur, par exemple dans **`C:\FSUCaisse`**.
+1. Copier le dossier `fsu-caisse` sur le PC serveur, par exemple dans **`C:\CSUCaisse`**.
    (Les bibliothèques nécessaires sont fournies dans `deploiement\windows\wheels` : pas besoin d'Internet.)
-2. Ouvrir `C:\FSUCaisse\deploiement\windows` et **double-cliquer sur `installer.bat`**.
+2. Ouvrir `C:\CSUCaisse\deploiement\windows` et **double-cliquer sur `installer.bat`**.
    Accepter la demande d'autorisation administrateur.
 3. Le script :
    - prépare l'environnement Python et la base de données ;
@@ -45,14 +45,14 @@ leur navigateur. **Aucune connexion Internet n'est nécessaire** au fonctionneme
 
 ### Options utiles
 
-Pour les utiliser, ouvrir **PowerShell en administrateur** dans `C:\FSUCaisse` :
+Pour les utiliser, ouvrir **PowerShell en administrateur** dans `C:\CSUCaisse` :
 
 ```powershell
 # Copier aussi chaque sauvegarde sur une clé USB (lettre E:)
-.\deploiement\windows\installer.ps1 -DossierCopieSauvegarde "E:\SauvegardesFSU"
+.\deploiement\windows\installer.ps1 -DossierCopieSauvegarde "E:\SauvegardesCSU"
 
 # Reprendre l'historique de l'ancien fichier Excel
-.\deploiement\windows\installer.ps1 -FichierExcel "C:\Users\Caisse\Documents\TABLEAU_DE_BORD_RECETTES_FSU_2026.xlsx" -Annee 2026
+.\deploiement\windows\installer.ps1 -FichierExcel "C:\Users\Caisse\Documents\TABLEAU_DE_BORD_RECETTES_CSU_2026.xlsx" -Annee 2026
 
 # Utiliser un autre port si le port 80 est déjà pris (l'adresse devient http://192.168.1.10:8080)
 .\deploiement\windows\installer.ps1 -Port 8080
@@ -103,7 +103,7 @@ ne trouveront plus l'application. Sur les autres postes, **ajouter l'adresse aux
 ## 6. Sauvegardes
 
 - Chaque soir à 20 h, une sauvegarde complète (base + photos des justificatifs) est créée dans
-  `C:\FSUCaisse\data\sauvegardes` et, si l'option a été donnée, copiée sur la clé USB.
+  `C:\CSUCaisse\data\sauvegardes` et, si l'option a été donnée, copiée sur la clé USB.
   Les sauvegardes de plus de 30 jours sont effacées automatiquement.
 - **Sauvegarde immédiate** : double-cliquer sur `deploiement\windows\sauvegarder-maintenant.bat`.
 - **Une fois par semaine**, emporter une copie hors du centre (2ᵉ clé USB, ou dossier synchronisé).
@@ -112,10 +112,10 @@ ne trouveront plus l'application. Sur les autres postes, **ajouter l'adresse aux
 ### Restaurer une sauvegarde
 
 ```powershell
-schtasks /End /TN "FSU Caisse - Serveur"
-cd C:\FSUCaisse
-.venv\Scripts\python.exe manage.py restaurer "C:\FSUCaisse\data\sauvegardes\fsu-caisse_2026-10-15_2000.zip"
-schtasks /Run /TN "FSU Caisse - Serveur"
+schtasks /End /TN "CSU Caisse - Serveur"
+cd C:\CSUCaisse
+.venv\Scripts\python.exe manage.py restaurer "C:\CSUCaisse\data\sauvegardes\fsu-caisse_2026-10-15_2000.zip"
+schtasks /Run /TN "CSU Caisse - Serveur"
 ```
 
 La base remplacée est conservée à côté (fichier `.avant-restauration-…`).
@@ -124,7 +124,7 @@ La base remplacée est conservée à côté (fichier `.avant-restauration-…`).
 
 ## 7. Mise à jour de l'application
 
-1. Remplacer les fichiers de `C:\FSUCaisse` par la nouvelle version **sans toucher** au dossier `data`
+1. Remplacer les fichiers de `C:\CSUCaisse` par la nouvelle version **sans toucher** au dossier `data`
    ni au fichier `.env`.
 2. Lancer `deploiement\windows\mettre-a-jour.ps1` en administrateur (sauvegarde automatique avant mise à jour).
 

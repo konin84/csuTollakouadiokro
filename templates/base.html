@@ -3,46 +3,120 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}FSU Caisse{% endblock %} · {{ facility.short_name|default:"FSU" }}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231d5b4f'/><path d='M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z' fill='white'/></svg>">
-  <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+  <title>{% block title %}CSU Caisse{% endblock %} · {{ facility.short_name|default:"CSU" }}</title>
+  <link rel="stylesheet" href="{% asset 'css/app.css' %}">
+  <link rel="icon" type="image/png" href="{% asset 'img/aip.png' %}">
+  <script src="{% asset 'vendor/htmx.min.js' %}" defer></script>
+  <script src="{% asset 'js/password-toggle.js' %}" defer></script>
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="{% block body_class %}{% endblock %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 {% with url=request.resolver_match.url_name %}
 <div class="layout">
   <nav class="sidebar" aria-label="Menu principal">
     <div class="brand">
-      <strong>FSU Caisse</strong>
+      <strong>GESTION</strong>
       <span>{{ facility.name }}</span>
     </div>
     <a class="nav {% if url == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">Tableau de bord</a>
+    {% if perms_app.caisse %}
     <div class="nav-title">Caisse</div>
     <a class="nav {% if url == 'session_today' %}active{% endif %}" href="{% url 'session_today' %}">Journée du jour</a>
     <a class="nav {% if url == 'session_list' or url == 'session_detail' %}active{% endif %}" href="{% url 'session_list' %}">Journées</a>
-    <a class="nav {% if url == 'deposit_list' or url == 'deposit_edit' %}active{% endif %}" href="{% url 'deposit_list' %}">Versements</a>
+    {% endif %}
+    {% if perms_app.banque %}<a class="nav {% if url == 'deposit_list' or url == 'deposit_edit' %}active{% endif %}" href="{% url 'deposit_list' %}">Versements bancaires</a>{% endif %}
+    {% if perms_app.pharmacie %}
     <div class="nav-title">Pharmacie</div>
     <a class="nav {% if url == 'product_list' or url == 'product_detail' or url == 'product_new' %}active{% endif %}" href="{% url 'product_list' %}">Stock</a>
     <a class="nav {% if 'order' in url %}active{% endif %}" href="{% url 'order_list' %}">Commandes</a>
     {% if perms_app.stock %}<a class="nav {% if url == 'inventory' %}active{% endif %}" href="{% url 'inventory' %}">Inventaire</a>
     <a class="nav {% if request.resolver_match.kwargs.kind == 'fournisseurs' %}active{% endif %}" href="{% url 'param_list' 'fournisseurs' %}">Fournisseurs</a>{% endif %}
-    <div class="nav-title">Rapports</div>
+    {% endif %}
+    {% if perms_app.rapports or perms_app.rapport_stock %}<div class="nav-title">Rapports</div>{% endif %}
+    {% if perms_app.rapports %}
     <a class="nav {% if url == 'report_monthly' %}active{% endif %}" href="{% url 'report_monthly' %}">Rapport mensuel</a>
     <a class="nav {% if url == 'report_annual' %}active{% endif %}" href="{% url 'report_annual' %}">Rapport annuel</a>
+    {% endif %}
+    {% if perms_app.rapport_stock %}<a class="nav {% if url == 'report_stock' %}active{% endif %}" href="{% url 'report_stock' %}">Rapport de stock</a>{% endif %}
     {% if perms_app.journal %}<a class="nav {% if url == 'audit_log' %}active{% endif %}" href="{% url 'audit_log' %}">Journal d'activité</a>{% endif %}
-    {% if perms_app.parametres %}<a class="nav {% if 'param_' in url and request.resolver_match.kwargs.kind != 'fournisseurs' %}active{% endif %}" href="{% url 'param_index' %}">Paramètres</a>{% endif %}
-    <div class="user">
-      {{ user.get_full_name|default:user.username }}<br>
-      <a href="{% url 'password_change' %}">Mot de passe</a> ·
-      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Déconnexion</button></form>
-    </div>
+    {% if perms_app.parametres or perms_app.actes %}<div class="nav-title">Administration</div>{% endif %}
+    {% if perms_app.actes %}<a class="nav {% if 'param_act' in url %}active{% endif %}" href="{% url 'param_acts' %}">Actes médicaux</a>{% endif %}
+    {% if perms_app.parametres %}<a class="nav {% if 'param_' in url and 'param_act' not in url and request.resolver_match.kwargs.kind != 'fournisseurs' %}active{% endif %}" href="{% url 'param_index' %}">Paramètres</a>{% endif %}
   </nav>
   <main>
+    <header class="topbar no-print">
+      {% with name=user.get_full_name|default:user.username %}
+      <details class="user-menu">
+        <summary aria-label="Menu du compte de {{ name }}">
+          <span class="avatar" aria-hidden="true">{{ name|first|upper }}</span>
+          <span class="user-label"><b>{{ name }}</b>{% if roles_label %}<small>{{ roles_label }}</small>{% endif %}</span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <div class="user-dropdown">
+          <a href="{% url 'password_change' %}">Mot de passe</a>
+          <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Déconnexion</button></form>
+        </div>
+      </details>
+      {% endwith %}
+    </header>
     {% if messages %}<div class="messages">{% for m in messages %}<div class="alert alert-{{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>
 {% endwith %}
+<div id="toast-zone" class="toast-zone"></div>
+<script>
+// Menu du compte : se ferme au clic à côté ou avec Échap
+document.addEventListener('click', function (ev) {
+  var menu = document.querySelector('.user-menu[open]');
+  if (menu && !menu.contains(ev.target)) menu.open = false;
+});
+document.addEventListener('keydown', function (ev) {
+  var menu = document.querySelector('.user-menu[open]');
+  if (menu && ev.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); }
+});
+// Confirmation dans un toast (au lieu de la fenêtre du navigateur) :
+// boutons data-confirm="Question ?" et requêtes htmx hx-confirm.
+(function () {
+  var zone = document.getElementById('toast-zone');
+  function button(label, cls) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = cls; b.textContent = label;
+    return b;
+  }
+  function ask(message, danger, onYes) {
+    var toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.setAttribute('role', 'alertdialog');
+    toast.setAttribute('aria-label', message);
+    var text = document.createElement('p');
+    text.textContent = message;
+    var no = button('Annuler', 'btn btn-sm');
+    var yes = button('Confirmer', 'btn btn-sm ' + (danger ? 'btn-danger-solid' : 'btn-primary'));
+    var actions = document.createElement('div');
+    actions.className = 'toast-actions';
+    actions.append(no, yes);
+    toast.append(text, actions);
+    function onKey(ev) { if (ev.key === 'Escape') close(); }
+    function close() { toast.remove(); document.removeEventListener('keydown', onKey); }
+    no.addEventListener('click', close);
+    yes.addEventListener('click', function () { close(); onYes(); });
+    document.addEventListener('keydown', onKey);
+    zone.replaceChildren(toast);
+    yes.focus();
+  }
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-confirm]');
+    if (!b || (b.form && !b.form.checkValidity())) return;  // champs manquants : message du navigateur
+    ev.preventDefault();
+    ask(b.dataset.confirm, b.classList.contains('btn-danger'), function () { b.form.requestSubmit(b); });
+  });
+  document.addEventListener('htmx:confirm', function (ev) {
+    if (!ev.detail.question) return;
+    ev.preventDefault();
+    ask(ev.detail.question, true, function () { ev.detail.issueRequest(true); });
+  });
+})();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

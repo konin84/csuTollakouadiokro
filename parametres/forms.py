@@ -4,10 +4,10 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils.text import slugify
 
 from caisse.forms import DateInput
-from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory
+from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory, name_key
 from core.models import Facility
 from core.roles import ALL_ROLES, ROLE_HELP
-from stock.models import Product, Supplier
+from stock.models import Supplier
 
 
 class FacilityForm(forms.ModelForm):
@@ -86,34 +86,24 @@ class ActForm(forms.ModelForm):
 
     class Meta:
         model = Act
-        fields = ["name", "category", "fund", "entry_mode", "is_lab", "order", "active", "product",
-                  "product_quantity"]
+        fields = ["name", "category", "fund", "is_lab", "order", "active"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        products = Product.objects.filter(active=True)
-        if self.instance.product_id:
-            products = products | Product.objects.filter(pk=self.instance.product_id)
-        self.fields["product"].queryset = products.distinct()
-        self.fields["product"].empty_label = "— Aucun —"
-        self.fields["product_quantity"].required = False
         if self.instance.pk:
-            del self.fields["price"], self.fields["valid_from"]
-            if self.instance.actentry_set.exists():
-                f = self.fields["entry_mode"]
-                f.disabled = True
-                f.help_text = "Ne peut plus être changé : des journées de caisse utilisent déjà cet acte."
+            del self.fields["price"], self.fields["valid_from"]  # tarifs suivants : panneau « Tarifs »
+        else:
+            # chaque acte a un prix fixe (nombre × prix unitaire)
+            self.fields["price"].required = self.fields["valid_from"].required = True
 
-    def clean(self):
-        data = super().clean()
-        if not data.get("product_quantity"):
-            data["product_quantity"] = 1
-        if "price" in self.fields and data.get("entry_mode") == Act.MODE_QUANTITY:
-            if data.get("price") is None:
-                self.add_error("price", "Indiquez le prix de l'acte.")
-            if not data.get("valid_from"):
-                self.add_error("valid_from", "Indiquez la date d'application du prix.")
-        return data
+    def clean_name(self):
+        """Un seul acte par libellé (accents, majuscules et espaces ignorés)."""
+        name = " ".join(self.cleaned_data["name"].split())
+        same = Act.objects.filter(name_key=name_key(name)).exclude(pk=self.instance.pk).first()
+        if same:
+            hint = " (désactivé : rouvrez-le et cochez « Actif »)" if not same.active else ""
+            raise forms.ValidationError(f"L'acte « {same.name} » existe déjà{hint}.")
+        return name
 
     def save(self, commit=True):
         act = super().save(commit=False)

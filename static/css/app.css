@@ -1,4 +1,4 @@
-/* FSU Caisse — feuille de style (aucune dépendance externe : fonctionne hors ligne) */
+/* CSU Caisse — feuille de style (aucune dépendance externe : fonctionne hors ligne) */
 :root {
   --bg: #f4f5f2;
   --surface: #ffffff;
@@ -57,12 +57,40 @@ p { margin: 0 0 .75rem; }
 }
 .sidebar a.nav:hover { background: rgba(255,255,255,.08); text-decoration: none; }
 .sidebar a.nav.active { background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
-.sidebar .user { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid rgba(255,255,255,.12); font-size: .85rem; }
-.sidebar .user form { display: inline; }
-.sidebar .user button { background: none; border: 0; color: #cfe1da; padding: 0; cursor: pointer; font: inherit; text-decoration: underline; }
-.sidebar .user a { color: #cfe1da; text-decoration: underline; }
 
 main { padding: 22px 28px 60px; max-width: 1400px; width: 100%; }
+
+/* --- Menu du compte (en haut à droite) ------------------------------------- */
+.topbar { display: flex; justify-content: flex-end; margin: -8px 0 10px; }
+.user-menu { position: relative; }
+.user-menu summary {
+  list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 5px 10px 5px 5px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: var(--shadow);
+}
+.user-menu summary::-webkit-details-marker { display: none; }
+.user-menu summary:hover, .user-menu[open] summary { border-color: var(--line-strong); }
+.user-menu summary:focus-visible { outline: 2px solid #8cc1b2; outline-offset: 2px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--brand); color: #fff; font-weight: 650; font-size: .9rem;
+}
+.user-label { display: grid; line-height: 1.2; text-align: left; }
+.user-label b { font-weight: 600; font-size: .9rem; }
+.user-label small { color: var(--muted); font-size: .75rem; }
+.chevron { color: var(--muted); transition: transform .15s; }
+.user-menu[open] .chevron { transform: rotate(180deg); }
+.user-dropdown {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 200px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(20, 35, 30, .16);
+}
+.user-dropdown a, .user-dropdown button {
+  display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; border: 0; background: none;
+  color: var(--ink); font: inherit; font-size: .92rem; cursor: pointer; text-decoration: none;
+}
+.user-dropdown a:hover, .user-dropdown button:hover { background: var(--surface-2); }
+.user-dropdown form { margin: 0; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+.user-dropdown button { color: var(--bad); }
 .page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .page-head .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .crumb { font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
@@ -89,6 +117,7 @@ main { padding: 22px 28px 60px; max-width: 1400px; width: 100%; }
 table.data { width: 100%; border-collapse: collapse; font-size: .92rem; }
 table.data th, table.data td { padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 table.data thead th { text-align: left; font-size: .76rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); font-weight: 600; background: var(--surface-2); border-bottom: 1px solid var(--line-strong); position: sticky; top: 0; }
+table.data thead th.num { text-align: right; }  /* titres des colonnes de nombres alignés sur les valeurs */
 table.data tbody tr:hover { background: #fafbf9; }
 table.data tfoot td, table.data tr.total td { font-weight: 650; background: var(--brand-soft); border-top: 1px solid var(--line-strong); }
 table.data tr.group td { background: var(--surface-2); font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding-top: 10px; }
@@ -101,6 +130,11 @@ input[type=text], input[type=number], input[type=date], input[type=password], in
   width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff;
   min-height: 38px;
 }
+.password-field { position: relative; }
+.password-field input { padding-right: 84px; }
+.password-toggle { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); border: 0; background: none;
+  color: var(--brand); font-size: .85rem; font-weight: 600; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+.password-toggle:hover { background: var(--brand-soft); }
 input:focus, select:focus, textarea:focus { outline: 2px solid #8cc1b2; outline-offset: 0; border-color: var(--brand); }
 input[type=number] { text-align: right; font-variant-numeric: tabular-nums; }
 input.qty { width: 92px; }
@@ -109,6 +143,13 @@ label { font-size: .85rem; color: var(--muted); display: block; margin-bottom: 3
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 12px; align-items: end; }
 .form-grid .wide { grid-column: span 2; }
 .form > div, .form p { margin-bottom: 12px; }
+.fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px 4px; margin: 0 0 14px; min-width: 0; }
+.fieldset legend { font-weight: 650; padding: 0 6px; }
+.fieldset legend .optional { font-weight: 400; font-size: .78rem; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; margin-left: 4px; }
+.fieldset-help { font-size: .85rem; color: var(--muted); margin: 0 0 10px; }
+.fieldset .form-grid { align-items: start; }
+.fieldset .form-grid > div { margin-bottom: 8px; }
+.unit-summary { background: var(--brand-soft); color: var(--brand-2); border-radius: 8px; padding: 8px 12px; font-size: .9rem; }
 .form .helptext, .helptext { font-size: .8rem; color: var(--muted); display: block; margin-top: 3px; }
 .errorlist { color: var(--bad); margin: 4px 0; padding-left: 18px; font-size: .85rem; }
 input[type=checkbox] { width: 18px; height: 18px; vertical-align: middle; }
@@ -125,6 +166,8 @@ input[type=checkbox] { width: 18px; height: 18px; vertical-align: middle; }
 .btn-accent:hover { filter: brightness(.95); background: var(--accent); }
 .btn-danger { color: var(--bad); border-color: #efc2bd; }
 .btn-danger:hover { background: var(--bad-bg); }
+.btn-danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn-danger-solid:hover { filter: brightness(.92); background: var(--bad); }
 .btn-sm { padding: 4px 9px; min-height: 30px; font-size: .85rem; }
 .btn-link { background: none; border: 0; color: var(--bad); padding: 2px 4px; cursor: pointer; font-size: .85rem; }
 .btn-group { display: inline-flex; gap: 0; }
@@ -192,25 +235,72 @@ ul.alerts { list-style: none; margin: 0; padding: 0; }
 .form #id_roles label { color: var(--ink); font-size: .9rem; margin-bottom: 6px; }
 
 /* --- Reçu patient ------------------------------------------------------------ */
-.receipt { max-width: 420px; }
-.receipt-head { text-align: center; border-bottom: 1px dashed var(--line-strong); padding-bottom: 8px; margin-bottom: 8px; }
-.receipt-head strong { font-size: 1.05rem; }
-.receipt-meta { display: grid; gap: 2px; margin-bottom: 10px; font-size: .92rem; }
-.receipt-meta span { display: inline-block; min-width: 92px; color: var(--muted); }
 .suggestions { margin-top: 10px; display: grid; gap: 4px; }
 .suggestions[hidden] { display: none; }
 .suggestion { text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: .9rem; }
 .suggestion:hover { border-color: var(--brand); background: var(--brand-soft); }
 input[readonly] { background: var(--surface-2); color: var(--muted); }
-@page receipt { size: A5 portrait; margin: 8mm; }
+/* Reçu : ticket d'imprimante thermique POS 80 mm (zone imprimable ≈ 72 mm). À l'écran, le reçu a sa taille
+   réelle (aperçu). Marge de page nulle : le navigateur n'a plus de place pour l'adresse, la date et le n° de page.
+   La hauteur de page est ajustée au contenu par le script de la page du reçu (rouleau sans fin). */
+.card.receipt { width: 80mm; max-width: 100%; padding: 4mm 4mm 6mm; font-size: 12px; line-height: 1.35; }
+.receipt-head { text-align: center; border-bottom: 1px dashed var(--line-strong); padding-bottom: 6px; margin-bottom: 6px; }
+.receipt-head strong { font-size: 13px; }
+.receipt-meta { display: grid; gap: 1px; margin-bottom: 6px; }
+.receipt-meta span { display: inline-block; min-width: 22mm; color: var(--muted); }
+.receipt table.data th, .receipt table.data td { padding: 2px 0 2px 4px; font-size: 11px; }
+.receipt table.data th:first-child, .receipt table.data td:first-child { padding-left: 0; }
+.receipt table.data tfoot td { font-size: 13px; border-top: 1px dashed var(--ink); }
+@page receipt { size: 80mm 200mm; margin: 0; }
 @media print {
-  .receipt { page: receipt; max-width: none; font-size: 12px; }
+  body.print-receipt { page: receipt; }
+  body.print-receipt main { padding: 0; }
+  .card.receipt { width: 80mm; border: 0; padding: 3mm 4mm 6mm; }
+  .card.receipt, .card.receipt * { color: #000 !important; background: #fff !important; }
+  .receipt-head, .receipt table.data th, .receipt table.data td { border-color: #000 !important; }
 }
 
 /* --- Connexion -------------------------------------------------------------- */
-.login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: linear-gradient(160deg, #e5efe9, #f4f5f2 60%); }
-.login-card { width: 100%; max-width: 380px; }
-.login-card h1 { font-size: 1.3rem; }
+.login-page {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+  background: radial-gradient(circle at 15% 10%, #dcebe4 0, transparent 45%),
+              radial-gradient(circle at 90% 90%, #f3e6d6 0, transparent 40%), var(--bg);
+}
+.login-shell {
+  width: min(940px, 100%); display: grid; grid-template-columns: 1fr 1fr; background: var(--surface);
+  border-radius: 18px; overflow: hidden; box-shadow: 0 24px 60px rgba(20, 35, 30, .14), 0 2px 6px rgba(20, 35, 30, .06);
+}
+.login-brand {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 22px;
+  padding: 44px 40px; color: #fff; background: linear-gradient(155deg, var(--brand) 0%, var(--brand-2) 100%);
+}
+/* halos décoratifs, rappel du soleil du logo */
+.login-brand::before, .login-brand::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
+.login-brand::before { width: 340px; height: 340px; right: -140px; top: -120px; background: rgba(255, 255, 255, .06); }
+.login-brand::after { width: 220px; height: 220px; left: -90px; bottom: -90px; background: rgba(240, 190, 60, .12); }
+.login-logo {
+  position: relative; z-index: 1; width: 148px; height: 148px; padding: 10px; background: #fff; border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+}
+.login-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.login-brand > div, .login-brand p { position: relative; z-index: 1; }
+.login-kicker { margin: 0 0 6px; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: rgba(255, 255, 255, .72); }
+.login-brand h2 { margin: 0; font-size: 1.5rem; line-height: 1.25; color: #fff; }
+.login-tagline { margin: 0; color: rgba(255, 255, 255, .82); border-left: 3px solid #f0be3c; padding-left: 12px; }
+.login-form { padding: 48px 44px; display: flex; flex-direction: column; justify-content: center; }
+.login-form h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.login-form .form { margin-top: 14px; }
+.login-form input[type=text], .login-form input[type=password] { padding-top: 11px; padding-bottom: 11px; }
+.login-submit { width: 100%; min-height: 46px; font-size: 1rem; margin-top: 4px; }
+.login-help { margin: 18px 0 0; text-align: center; }
+@media (max-width: 760px) {
+  .login-shell { grid-template-columns: minmax(0, 1fr); }
+  .login-brand { padding: 28px 22px; gap: 14px; align-items: center; text-align: center; }
+  .login-logo { width: 104px; height: 104px; border-radius: 18px; }
+  .login-brand h2 { font-size: 1.2rem; }
+  .login-tagline { border-left: 0; padding-left: 0; }
+  .login-form { padding: 28px 22px 32px; }
+}
 
 /* --- Responsive ------------------------------------------------------------- */
 @media (max-width: 1100px) {
@@ -224,7 +314,7 @@ input[readonly] { background: var(--surface-2); color: var(--muted); }
   .brand { display: none; }
   .nav-title { display: none; }
   .sidebar a.nav { white-space: nowrap; padding: 7px 10px; font-size: .88rem; }
-  .sidebar .user { margin: 0 0 0 auto; border: 0; padding: 7px 6px; white-space: nowrap; }
+  .user-label { display: none; }
   main { padding: 16px 16px 50px; }
   .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
   .form-grid .wide { grid-column: auto; }
@@ -238,8 +328,8 @@ input[readonly] { background: var(--surface-2); color: var(--muted); }
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   body { background: #fff; font-size: 11px; }
-  .layout { display: block; }
-  .sidebar, .no-print, .actions, .messages { display: none !important; }
+  .layout { display: block; min-height: 0; }
+  .sidebar, .no-print, .actions, .messages, .toast-zone { display: none !important; }
   main { padding: 0; max-width: none; }
   .card { box-shadow: none; border: 0; padding: 0; margin-bottom: 10px; }
   table.data th, table.data td { padding: 3px 5px; }
@@ -248,3 +338,33 @@ input[readonly] { background: var(--surface-2); color: var(--muted); }
   a { color: inherit; }
 }
 .print-only { display: none; }
+
+/* --- Onglets (Recettes par acte) -------------------------------------------- */
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 4px 0 0; scrollbar-width: thin; }
+.tab {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; margin-bottom: -1px;
+  border: 1px solid transparent; border-bottom: 2px solid transparent; border-radius: 8px 8px 0 0;
+  background: none; color: var(--muted); font: inherit; font-size: .9rem; cursor: pointer; white-space: nowrap;
+}
+.tab:hover { color: var(--ink); background: var(--surface-2); }
+.tab[aria-selected=true] { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+.tab:focus-visible { outline: 2px solid #8cc1b2; outline-offset: -2px; }
+.tab-amount { font-size: .78rem; font-weight: 600; color: var(--brand-2); background: var(--brand-soft); border-radius: 99px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.tab-panel .print-only-row { display: none; }
+@media print {
+  .tab-panel[hidden] { display: table-row-group !important; }
+  .tab-panel .print-only-row { display: table-row; }
+}
+
+/* Confirmation en toast */
+.toast-zone { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 50;
+  width: min(440px, calc(100vw - 32px)); }
+.toast {
+  background: var(--surface); border: 1px solid var(--line-strong); border-left: 4px solid var(--brand);
+  border-radius: var(--radius); box-shadow: 0 8px 28px rgba(20, 35, 30, .18); padding: 14px 16px;
+  animation: toast-in .16s ease-out;
+}
+.toast p { margin: 0 0 12px; }
+.toast-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

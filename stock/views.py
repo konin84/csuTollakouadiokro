@@ -17,6 +17,7 @@ def _products_with_qty():
     return Product.objects.annotate(qty=Sum("movements__quantity"))
 
 
+@require("pharmacie")
 def product_list(request):
     qs = _products_with_qty()
     q = request.GET.get("q", "").strip()
@@ -28,13 +29,14 @@ def product_list(request):
     products = list(qs)
     if show == "alerte":
         products = [p for p in products if p.active and p.reorder_level and (p.qty or 0) <= p.reorder_level]
-    value = sum((p.qty or 0) * p.purchase_price for p in products if (p.qty or 0) > 0)
+    value = sum(p.stock_value(p.qty) for p in products)
     return render(request, "stock/product_list.html", {
         "products": products, "q": q, "show": show, "stock_value": value,
         "can_stock": can(request.user, "stock"),
     })
 
 
+@require("pharmacie")
 def product_detail(request, pk, entry_form=None):
     product = get_object_or_404(_products_with_qty(), pk=pk)
     form = None
@@ -45,7 +47,7 @@ def product_detail(request, pk, entry_form=None):
             form.save()
             messages.success(request, "Produit enregistré.")
             return redirect("product_detail", pk=pk)
-        entry_form = entry_form or StockEntryForm(initial={"date": timezone.localdate()})
+        entry_form = entry_form or StockEntryForm(initial={"date": timezone.localdate()}, product=product)
     movements = product.movements.select_related("created_by")[:200]
     return render(request, "stock/product_detail.html", {"product": product, "form": form, "movements": movements,
                                                          "entry_form": entry_form})
@@ -56,18 +58,23 @@ def product_detail(request, pk, entry_form=None):
 def stock_entry(request, pk):
     """Ajout de stock sans commande : achat direct, don, transfert…"""
     product = get_object_or_404(Product, pk=pk)
-    form = StockEntryForm(request.POST)
+    form = StockEntryForm(request.POST, product=product)
     if not form.is_valid():
         return product_detail(request, pk, entry_form=form)
-    cost = form.cleaned_data["unit_cost"]
+    cost = form.cleaned_data["unit_cost"]  # par unité d'achat (ex. boîte)
+    if cost is None:
+        cost = product.purchase_price
+    packs = form.cleaned_data["quantity"]
+    units = packs * product.purchase_size
     StockMovement.objects.create(
         product=product, date=form.cleaned_data["date"], kind=StockMovement.ENTRY,
-        quantity=form.cleaned_data["quantity"], unit_cost=product.purchase_price if cost is None else cost,
+        quantity=units, unit_cost=round(cost / product.purchase_size),
         reference=form.cleaned_data["reference"], note=form.cleaned_data["note"], created_by=request.user)
-    if cost:
+    if form.cleaned_data["unit_cost"]:
         product.purchase_price = cost
         product.save(update_fields=["purchase_price"])
-    messages.success(request, f"{form.cleaned_data['quantity']} {product.unit} ajouté(s) au stock de « {product.name} ».")
+    added = f"{packs} {product.purchase_unit}(s) = {units} {product.unit}(s)" if product.purchase_unit         else f"{units} {product.unit}(s)"
+    messages.success(request, f"{added} ajouté(s) au stock de « {product.name} ».")
     return redirect("product_detail", pk=pk)
 
 
@@ -79,7 +86,7 @@ def product_new(request):
         if form.cleaned_data.get("initial_stock"):
             StockMovement.objects.create(
                 product=p, date=timezone.localdate(), kind=StockMovement.INITIAL,
-                quantity=form.cleaned_data["initial_stock"], unit_cost=p.purchase_price,
+                quantity=form.cleaned_data["initial_stock"], unit_cost=round(p.unit_cost),
                 reference="Stock initial (création du produit)", created_by=request.user)
         messages.success(request, f"Produit « {p.name} » créé.")
         return redirect("product_detail", pk=p.pk)
@@ -87,6 +94,7 @@ def product_new(request):
 
 
 # --- Commandes -------------------------------------------------------------
+@require("pharmacie")
 def order_list(request):
     orders = PurchaseOrder.objects.select_related("supplier").prefetch_related("lines")
     return render(request, "stock/order_list.html", {"orders": orders, "can_stock": can(request.user, "stock")})
@@ -104,6 +112,7 @@ def order_new(request):
     return render(request, "stock/order_form.html", {"form": form})
 
 
+@require("pharmacie")
 def order_detail(request, pk):
     order = get_object_or_404(PurchaseOrder.objects.select_related("supplier"), pk=pk)
     editable = order.status == PurchaseOrder.DRAFT and can(request.user, "stock")
@@ -113,6 +122,7 @@ def order_detail(request, pk):
         if line_form.is_valid():
             line = line_form.save(commit=False)
             line.order = order
+            line.units_per_pack = line.product.purchase_size
             if not line.unit_cost:
                 line.unit_cost = line.product.purchase_price
             line.save()
@@ -171,12 +181,14 @@ def order_receive(request, pk):
                 line.received_quantity = qty
                 line.save()
                 if qty:
+                    # quantité et prix par unité d'achat (boîte) -> unités de stock (comprimés)
+                    size = line.units_per_pack or 1
                     StockMovement.objects.create(
-                        product=line.product, date=received_date, kind=StockMovement.RECEPTION, quantity=qty,
-                        unit_cost=line.unit_cost, reference=order.number, order_line=line,
-                        created_by=request.user)
+                        product=line.product, date=received_date, kind=StockMovement.RECEPTION,
+                        quantity=qty * size, unit_cost=round(line.unit_cost / size), reference=order.number,
+                        order_line=line, created_by=request.user)
                     if line.unit_cost:
-                        line.product.purchase_price = line.unit_cost
+                        line.product.purchase_price = round(line.unit_cost * line.product.purchase_size / size)
                         line.product.save(update_fields=["purchase_price"])
             order.status = PurchaseOrder.RECEIVED
             order.received_date = received_date
@@ -211,7 +223,7 @@ def inventory(request):
                     first = not p.movements.exists()
                     StockMovement.objects.create(
                         product=p, date=day, kind=StockMovement.INITIAL if first else StockMovement.ADJUST,
-                        quantity=diff, unit_cost=p.purchase_price, reference=f"Inventaire du {day:%d/%m/%Y}",
+                        quantity=diff, unit_cost=round(p.unit_cost), reference=f"Inventaire du {day:%d/%m/%Y}",
                         note=note, created_by=request.user)
                     changes += 1
         messages.success(request, f"Inventaire enregistré : {changes} produit(s) ajusté(s).")
@@ -225,7 +237,7 @@ def loss(request):
     if request.method == "POST" and form.is_valid():
         p = form.cleaned_data["product"]
         StockMovement.objects.create(product=p, date=form.cleaned_data["date"], kind=StockMovement.LOSS,
-                                     quantity=-form.cleaned_data["quantity"], unit_cost=p.purchase_price,
+                                     quantity=-form.cleaned_data["quantity"], unit_cost=round(p.unit_cost),
                                      note=form.cleaned_data["note"], reference="Sortie pour perte",
                                      created_by=request.user)
         messages.success(request, "Sortie enregistrée.")

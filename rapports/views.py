@@ -64,3 +64,21 @@ def annual_xlsx(request):
     resp = HttpResponse(excel.annual_workbook(data.annual(y)), content_type=XLSX)
     resp["Content-Disposition"] = f'attachment; filename="rapport-annuel-{y}.xlsx"'
     return resp
+
+
+@require("rapport_stock")
+def stock(request):
+    y, m = _month_param(request)
+    ctx = data.stock_monthly(y, m)
+    ctx["prev"] = f"{y - (m == 1)}-{(m - 2) % 12 + 1:02d}"
+    ctx["next"] = f"{y + (m == 12)}-{m % 12 + 1:02d}"
+    ctx["mois"] = f"{y}-{m:02d}"
+    return render(request, "rapports/stock.html", ctx)
+
+
+@require("rapport_stock")
+def stock_xlsx(request):
+    y, m = _month_param(request)
+    resp = HttpResponse(excel.stock_workbook(data.stock_monthly(y, m)), content_type=XLSX)
+    resp["Content-Disposition"] = f'attachment; filename="rapport-stock-{y}-{m:02d}.xlsx"'
+    return resp

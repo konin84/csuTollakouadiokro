@@ -1,10 +1,6 @@
 from django import forms
-from django.db.models import Sum
 
-from core.models import Facility
-from stock.models import Product
-
-from .models import BankAccount, Deposit, Expense, ExpenseCategory, PharmacySale, Visit
+from .models import BankAccount, Deposit, Expense, ExpenseCategory, Visit
 
 
 class DateInput(forms.DateInput):
@@ -30,39 +26,6 @@ class ExpenseForm(forms.ModelForm):
         self.fields["receipt"].widget.attrs["accept"] = "image/*,application/pdf"
 
 
-class SaleForm(forms.ModelForm):
-    class Meta:
-        model = PharmacySale
-        fields = ["product", "description", "quantity", "unit_price"]
-        widgets = {
-            "quantity": forms.NumberInput(attrs={"min": 1, "step": 1, "inputmode": "numeric"}),
-            "unit_price": forms.NumberInput(attrs={"min": 0, "step": 1, "inputmode": "numeric"}),
-            "description": forms.TextInput(attrs={"placeholder": "Ex. ventes du jour (sans détail)"}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        field = self.fields["product"]
-        field.queryset = Product.objects.filter(active=True).annotate(qty=Sum("movements__quantity"))
-        field.label_from_instance = lambda p: f"{p.name} — stock : {p.qty or 0}"
-        field.required = False
-        field.empty_label = "— Montant global (sans produit) —"
-
-    def clean(self):
-        data = super().clean()
-        product = data.get("product")
-        if not product and not data.get("description"):
-            data["description"] = "Ventes pharmacie"
-        if product and not data.get("unit_price"):
-            data["unit_price"] = product.sale_price
-        if product and data.get("quantity") and Facility.current().block_negative_stock:
-            available = product.qty or 0
-            if data["quantity"] > available:
-                self.add_error("quantity", f"Stock insuffisant pour « {product.name} » : {max(available, 0)} "
-                                           "disponible(s). Si le stock réel est différent, faites un inventaire.")
-        return data
-
-
 class DepositForm(forms.ModelForm):
     class Meta:
         model = Deposit
@@ -85,6 +48,11 @@ class CloseForm(forms.Form):
                             widget=forms.Textarea(attrs={"rows": 2}))
 
 
+class ValidateForm(forms.Form):
+    handed_over = forms.IntegerField(label="Argent reçu du caissier (F)", min_value=0,
+                                     widget=forms.NumberInput(attrs={"inputmode": "numeric", "step": 1}))
+
+
 class ReopenForm(forms.Form):
     reason = forms.CharField(label="Motif de la réouverture", max_length=255)
 
@@ -105,8 +73,22 @@ class VisitForm(forms.ModelForm):
         raw = self.cleaned_data["phone"].strip()
         return ("+" if raw.startswith("+") else "") + "".join(ch for ch in raw if ch.isdigit())
 
+    WALK_IN = "Client de passage"
+
+    def __init__(self, *args, pharmacy=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        # vente de médicaments seule : le nom du client est facultatif
+        self.pharmacy = pharmacy
+        if pharmacy:
+            field = self.fields["patient_name"]
+            field.required = False
+            field.label = "Nom du client (facultatif)"
+            field.widget.attrs["placeholder"] = self.WALK_IN
+
     def clean_patient_name(self):
         name = " ".join(self.cleaned_data["patient_name"].split())
+        if self.pharmacy and not name:
+            return self.WALK_IN
         if len(name) < 2:
             raise forms.ValidationError("Indiquez le nom du patient.")
         return name

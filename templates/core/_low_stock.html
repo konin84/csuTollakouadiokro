@@ -1,0 +1,8 @@
+<div class="card">
+  <div class="card-head"><h2>Stock sous le seuil</h2><a class="small" href="{% url 'product_list' %}?voir=alerte">Tout voir</a></div>
+  {% if low_stock %}
+  <table class="data compact"><tbody>
+    {% for p in low_stock|slice:":8" %}<tr><td><a href="{% url 'product_detail' p.id %}">{{ p.name }}</a></td><td class="num"><span class="badge badge-low">{{ p.qty|default:0 }} / {{ p.reorder_level }}</span></td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="muted">Aucun produit sous son seuil d'alerte.</p>{% endif %}
+</div>

@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date as date_cls
 
 from django.conf import settings
@@ -6,6 +7,13 @@ from django.db.models import Q
 
 from core.audit import track
 from core.models import Facility
+
+def name_key(name: str) -> str:
+    """Clé de comparaison d'un libellé : sans accents, sans casse, espaces réduits
+    (« Goutte épaisse » = « goutte  EPAISSE »)."""
+    text = unicodedata.normalize("NFKD", name or "")
+    return " ".join("".join(c for c in text if not unicodedata.combining(c)).casefold().split())
+
 
 # Les deux caisses du centre, chacune versée sur sa propre banque.
 FUND_ENTREE = "ENTREE"
@@ -39,6 +47,8 @@ class Act(models.Model):
 
     code = models.SlugField("code", max_length=40, unique=True)
     name = models.CharField("libellé", max_length=120)
+    # un acte par libellé (accents, majuscules et espaces ignorés) : évite les doublons
+    name_key = models.CharField(max_length=120, unique=True, editable=False)
     category = models.CharField("catégorie", max_length=20, choices=CATEGORIES, default="AUTRE")
     fund = models.CharField("caisse", max_length=10, choices=FUNDS, default=FUND_ENTREE)
     entry_mode = models.CharField("mode de saisie", max_length=10, choices=MODES, default=MODE_QUANTITY)
@@ -48,12 +58,6 @@ class Act(models.Model):
     )
     order = models.PositiveIntegerField("ordre d'affichage", default=100)
     active = models.BooleanField("actif", default=True)
-    product = models.ForeignKey(
-        "stock.Product", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
-        verbose_name="produit consommé",
-        help_text="Produit retiré du stock à chaque acte (ex. Gant → 1 paire de gants). Laisser vide sinon.",
-    )
-    product_quantity = models.PositiveIntegerField("quantité consommée par acte", default=1)
 
     class Meta:
         ordering = ["order", "name"]
@@ -63,9 +67,20 @@ class Act(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.name = " ".join(self.name.split())
+        self.name_key = name_key(self.name)
+        super().save(*args, **kwargs)
+
     @property
     def by_quantity(self):
         return self.entry_mode == self.MODE_QUANTITY
+
+    def has_been_charged(self):
+        """Facturé au moins une fois (reçu patient ou quantité/montant dans une journée). Les lignes vides que
+        chaque journée ouverte crée pour tous les actes ne comptent pas."""
+        return (self.visitact_set.exists()
+                or self.actentry_set.exclude(quantity=0, amount=0).exists())
 
     def price_on(self, day):
         price = self.prices.filter(valid_from__lte=day).order_by("-valid_from").first()
@@ -176,6 +191,8 @@ class CashSession(models.Model):
     validated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                      related_name="+", verbose_name="validée par")
     validated_at = models.DateTimeField("validée le", null=True, blank=True)
+    # à la validation, le superviseur reçoit l'argent de la journée (remise) : il le versera à la banque
+    handed_over = models.IntegerField("argent remis au superviseur", null=True, blank=True)
     imported = models.BooleanField("importée depuis Excel", default=False)
 
     class Meta:
@@ -196,6 +213,13 @@ class CashSession(models.Model):
         if self.counted_cash is None or self.expected_cash is None:
             return None
         return self.counted_cash - self.expected_cash
+
+    @property
+    def handover_gap(self):
+        """Argent reçu par le superviseur − argent compté à la clôture."""
+        if self.handed_over is None or self.counted_cash is None:
+            return None
+        return self.handed_over - self.counted_cash
 
     @property
     def is_future(self):
@@ -261,6 +285,10 @@ class Deposit(models.Model):
     depositor = models.CharField("déposant", max_length=120, blank=True)
     slip = models.FileField("bordereau scanné / photo", upload_to="versements/%Y/%m/", blank=True)
     note = models.CharField("remarque", max_length=255, blank=True)
+    from_till = models.BooleanField(
+        "versé depuis la caisse", default=False,
+        help_text="Versement fait directement par la caisse (avant les remises au superviseur, ou import Excel). "
+                  "Sinon, l'argent vient des remises reçues par le superviseur.")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -283,8 +311,12 @@ class Visit(models.Model):
     Un reçu n'est jamais supprimé : il est annulé, avec un motif."""
 
     SEXES = [("F", "Féminin"), ("M", "Masculin")]
+    PATIENT = "PATIENT"
+    PHARMACY = "PHARMACIE"  # vente de médicaments seule (client venu pour la pharmacie) : pas d'actes
+    KINDS = [(PATIENT, "Patient"), (PHARMACY, "Vente pharmacie")]
 
     session = models.ForeignKey(CashSession, on_delete=models.PROTECT, related_name="visits")
+    kind = models.CharField("type", max_length=10, choices=KINDS, default=PATIENT)
     number = models.CharField("n° de reçu", max_length=20, unique=True)
     patient_name = models.CharField("nom et prénoms du patient", max_length=150)
     phone = models.CharField("téléphone", max_length=30, blank=True)
@@ -304,6 +336,10 @@ class Visit(models.Model):
         ordering = ["id"]
         verbose_name = "passage patient"
         verbose_name_plural = "passages patients"
+
+    @property
+    def is_pharmacy(self):
+        return self.kind == self.PHARMACY
 
     def __str__(self):
         return f"Reçu {self.number} – {self.patient_name}"
@@ -348,6 +384,9 @@ class PharmacySale(models.Model):
                                 verbose_name="produit")
     description = models.CharField("libellé", max_length=200, blank=True)
     quantity = models.PositiveIntegerField("quantité", default=1)
+    # vendu par l'autre unité de vente du produit (ex. plaquette) : units_per_item unités de stock par article
+    pack = models.BooleanField("vendu par l'autre unité", default=False)
+    units_per_item = models.PositiveIntegerField("unités de stock par article", default=1)
     unit_price = models.PositiveIntegerField("prix unitaire (F)", default=0)
     amount = models.PositiveIntegerField("montant (F)", default=0)
 
@@ -359,6 +398,17 @@ class PharmacySale(models.Model):
     def __str__(self):
         label = self.product.name if self.product_id else (self.description or "Ventes pharmacie")
         return f"{label} × {self.quantity}"
+
+    @property
+    def stock_quantity(self):
+        """Quantité sortie du stock, en unités de stock (ex. 2 plaquettes de 10 -> 20 comprimés)."""
+        return self.quantity * self.units_per_item
+
+    @property
+    def unit_label(self):
+        if not self.product_id:
+            return ""
+        return self.product.pack_unit if self.pack else self.product.unit
 
     def save(self, *args, **kwargs):
         self.amount = self.quantity * self.unit_price

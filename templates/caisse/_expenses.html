@@ -2,7 +2,7 @@
 <section class="card" id="expenses">
   <div class="card-head"><h2>Dépenses payées en espèces</h2><span class="num strong">{{ totals.expenses_total|fcfa }}</span></div>
   <div class="table-wrap"><table class="data">
-    <thead><tr><th>Catégorie</th><th>Motif</th><th>Payée sur</th><th></th><th class="num">Montant</th>{% if editable %}<th></th>{% endif %}</tr></thead>
+    <thead><tr><th>Catégorie</th><th>Motif</th><th>Payée sur</th><th></th><th class="num">Montant</th>{% if can_spend %}<th></th>{% endif %}</tr></thead>
     <tbody>
     {% for x in session.expenses.all %}
       <tr>
@@ -11,12 +11,12 @@
         <td><span class="badge badge-fund">{{ x.get_fund_display }}</span></td>
         <td>{% if x.receipt %}<a class="small" href="{{ x.receipt.url }}" target="_blank">justificatif</a>{% endif %}</td>
         <td class="num">{{ x.amount|num }}</td>
-        {% if editable %}<td class="num"><button class="btn-link" hx-post="{% url 'expense_delete' session.date|date:'Y-m-d' x.id %}" hx-target="#expenses" hx-swap="outerHTML" hx-confirm="Supprimer cette dépense ?">Supprimer</button></td>{% endif %}
+        {% if can_spend %}<td class="num"><button class="btn-link" hx-post="{% url 'expense_delete' session.date|date:'Y-m-d' x.id %}" hx-target="#expenses" hx-swap="outerHTML" hx-confirm="Supprimer cette dépense ?">Supprimer</button></td>{% endif %}
       </tr>
     {% empty %}<tr><td colspan="6" class="muted">Aucune dépense ce jour.</td></tr>{% endfor %}
     </tbody>
   </table></div>
-  {% if editable %}
+  {% if can_spend %}
   <form class="form-grid" style="margin-top:12px" hx-post="{% url 'expense_add' session.date|date:'Y-m-d' %}" hx-encoding="multipart/form-data" hx-target="#expenses" hx-swap="outerHTML">
     {% if expense_form.errors %}<div class="alert alert-error wide">{{ expense_form.errors }}</div>{% endif %}
     <div><label>{{ expense_form.category.label|capfirst }}</label>{{ expense_form.category }}</div>
