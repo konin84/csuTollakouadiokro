@@ -380,6 +380,21 @@ class StockReportTests(StockBase):
         self.assertEqual(len(r.context["losses"]), 1)
         self.assertEqual(len(r.context["adjustments"]), 1)
 
+    def test_each_detail_has_its_own_view(self):
+        self.client.force_login(self.pharma)
+        page = self.client.get("/rapports/stock/?mois=2026-10")
+        self.assertContains(page, "Mouvements par produit")
+        self.assertNotContains(page, "<h2>Entrées du mois</h2>")
+        self.assertContains(page, 'href="?mois=2026-10&vue=entries"')
+        r = self.client.get("/rapports/stock/?mois=2026-10&vue=entries")
+        self.assertContains(r, "<h2>Entrées du mois</h2>")
+        self.assertContains(r, "Réception commande")
+        self.assertNotContains(r, "Mouvements par produit")
+        self.assertContains(r, 'href="?mois=2026-11&vue=entries"')          # le mois suivant garde la vue
+        self.assertContains(self.client.get("/rapports/stock/?mois=2026-10&vue=losses"), "<h2>Pertes (périmés, casse)</h2>")
+        self.assertContains(self.client.get("/rapports/stock/?mois=2026-10&vue=adjustments"), "<h2>Ajustements d")
+        self.assertContains(self.client.get("/rapports/stock/?mois=2026-10&vue=nimporte"), "Mouvements par produit")
+
     def test_excel_export(self):
         self.client.force_login(self.pharma)
         r = self.client.get("/rapports/stock/excel/?mois=2026-10")
@@ -463,3 +478,76 @@ class PackagingTests(StockBase):
         plain = self.product("SIROP TOUX", initial=10, sale_price=1500, purchase_price=900)
         self.assertEqual((plain.purchase_size, plain.unit_cost, plain.has_pack, plain.describe(10)),
                          (1, 900, False, ""))
+
+
+class ProductSupplierTests(StockBase):
+    def test_choose_supplier_from_list(self):
+        from .models import Supplier
+        ubi = Supplier.objects.create(name="UBIPHARM")
+        self.client.force_login(self.pharma)
+        page = self.client.get("/stock/produit/nouveau/")
+        self.assertContains(page, "UBIPHARM")
+        self.assertContains(page, "+ Nouveau fournisseur")
+        self.client.post("/stock/produit/nouveau/", {"name": "AMOXICILLINE 500", "form": "COMPRIME",
+                                                     "unit": "plaquette", "sale_price": 1500, "pack_unit": "",
+                                                     "supplier": ubi.id, "purchase_unit": "", "purchase_price": 1200,
+                                                     "reorder_level": 5, "active": "on"})
+        self.assertEqual(Product.objects.get(name="AMOXICILLINE 500").supplier, ubi)
+
+    def test_quick_add_supplier_from_product_form(self):
+        from .models import Supplier
+        self.client.force_login(self.pharma)
+        page = self.client.get("/stock/produit/nouveau/")
+        self.assertContains(page, "+ Nouveau fournisseur")
+        self.assertContains(page, "Conditionnement d&#x27;achat")
+        r = self.client.post("/stock/fournisseur/ajouter/", {"name": "LABOREX", "phone": "0102030405", "address": ""})
+        self.assertEqual(r.json(), {"id": Supplier.objects.get(name="LABOREX").id, "name": "LABOREX"})
+        r = self.client.post("/stock/fournisseur/ajouter/", {"name": "LABOREX", "phone": "", "address": ""})
+        self.assertEqual(r.status_code, 400)                    # nom déjà utilisé
+        self.assertIn("name", r.json()["errors"])
+        self.client.force_login(self.cashier)
+        self.assertEqual(self.client.post("/stock/fournisseur/ajouter/", {"name": "X"}).status_code, 403)
+
+
+class ProductDeleteTests(StockBase):
+    def test_delete_product_created_by_mistake(self):
+        p = self.product("ERREUR DE SAISIE", initial=10)       # stock initial seulement
+        self.client.force_login(self.pharma)
+        self.assertContains(self.client.get(f"/stock/produit/{p.id}/"), "Supprimer le produit")
+        r = self.client.post(f"/stock/produit/{p.id}/supprimer/")
+        self.assertRedirects(r, "/stock/")
+        self.assertFalse(Product.objects.filter(pk=p.pk).exists())
+
+    def test_product_with_history_is_kept(self):
+        p = self.product("VITAMINE C", initial=10, sale_price=25)
+        PharmacySale.objects.create(session=self.make_session(date(2026, 10, 2)), product=p, quantity=1, unit_price=25)
+        self.client.force_login(self.pharma)
+        r = self.client.post(f"/stock/produit/{p.id}/supprimer/", follow=True)
+        self.assertContains(r, "ne peut pas être supprimé")
+        self.assertTrue(Product.objects.filter(pk=p.pk).exists())
+
+    def test_only_pharmacy_can_delete(self):
+        p = self.product("X")
+        self.client.force_login(self.cashier)
+        self.assertEqual(self.client.post(f"/stock/produit/{p.id}/supprimer/").status_code, 403)
+        self.assertTrue(Product.objects.filter(pk=p.pk).exists())
+
+
+class PackagingConflictTests(StockBase):
+    BASE = {"name": "AMOXICILLINE 500", "form": "COMPRIME", "unit": "plaquette", "sale_price": 500,
+            "pack_unit": "boîte", "pack_size": 10, "pack_price": 5000, "purchase_price": 35000, "reorder_level": 20,
+            "active": "on"}
+
+    def test_same_word_two_sizes_is_refused(self):
+        self.client.force_login(self.pharma)
+        r = self.client.post("/stock/produit/nouveau/", {**self.BASE, "purchase_unit": "boîte", "purchase_size": 100})
+        self.assertContains(r, "contient déjà 10 plaquette(s) à la vente")
+        self.assertFalse(Product.objects.filter(name="AMOXICILLINE 500").exists())
+
+    def test_distinct_words_or_same_size_are_accepted(self):
+        self.client.force_login(self.pharma)
+        self.client.post("/stock/produit/nouveau/", {**self.BASE, "purchase_unit": "carton", "purchase_size": 100})
+        self.assertEqual(Product.objects.get(name="AMOXICILLINE 500").purchase_unit, "carton")
+        self.client.post("/stock/produit/nouveau/", {**self.BASE, "name": "AMOX BIS", "purchase_unit": "boîte",
+                                                     "purchase_size": 10})
+        self.assertTrue(Product.objects.filter(name="AMOX BIS").exists())

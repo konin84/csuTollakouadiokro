@@ -44,8 +44,10 @@ urlpatterns = [
     # Pharmacie / stock
     path("stock/", stock.product_list, name="product_list"),
     path("stock/produit/nouveau/", stock.product_new, name="product_new"),
+    path("stock/fournisseur/ajouter/", stock.supplier_quick_add, name="supplier_quick_add"),
     path("stock/produit/<int:pk>/", stock.product_detail, name="product_detail"),
     path("stock/produit/<int:pk>/entree/", stock.stock_entry, name="stock_entry"),
+    path("stock/produit/<int:pk>/supprimer/", stock.product_delete, name="product_delete"),
     path("stock/commandes/", stock.order_list, name="order_list"),
     path("stock/commandes/nouvelle/", stock.order_new, name="order_new"),
     path("stock/commandes/<int:pk>/", stock.order_detail, name="order_detail"),

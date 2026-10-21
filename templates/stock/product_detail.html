@@ -3,9 +3,10 @@
 {% block content %}
 <div class="page-head">
   <div><div class="crumb"><a href="{% url 'product_list' %}">Stock</a></div><h1>{{ product.name }}</h1></div>
-  <div class="actions">{% if entry_form %}<a class="btn btn-sm" href="{% url 'stock_loss' %}?produit={{ product.id }}">Sortie (perte, périmé)</a><a class="btn btn-sm" href="{% url 'order_new' %}">Commander</a>{% endif %}<span class="badge {% if product.reorder_level and product.stock_qty <= product.reorder_level %}badge-low{% else %}badge-ok{% endif %}" style="font-size:.95rem">En stock : {{ product.stock_qty }} {{ product.unit }}{% with d=product.stock_qty|stock_describe:product %}{% if d %} · {{ d }}{% endif %}{% endwith %}</span></div>
+  <div class="actions">{% if entry_form %}<a class="btn btn-sm" href="{% url 'stock_loss' %}?produit={{ product.id }}">Sortie (perte, périmé)</a><a class="btn btn-sm" href="{% url 'order_new' %}">Commander</a>{% endif %}<a class="btn btn-sm" href="#fiche">Fiche produit</a><span class="badge {% if product.reorder_level and product.stock_qty <= product.reorder_level %}badge-low{% else %}badge-ok{% endif %}" style="font-size:.95rem">En stock : {{ product.stock_qty }} {{ product.unit }}{% with d=product.stock_qty|stock_describe:product %}{% if d %} · {{ d }}{% endif %}{% endwith %}</span></div>
 </div>
 <div class="split">
+  <div class="stack">
   <div class="card">
     <h2>Mouvements</h2>
     <div class="table-wrap"><table class="data compact">
@@ -22,6 +23,19 @@
       </tbody>
     </table></div>
   </div>
+  <div class="card" id="fiche">
+    <h2>Fiche produit</h2>
+    {% if form %}
+    <form method="post" class="form">{% csrf_token %}{% include "stock/_product_fields.html" %}<button class="btn btn-primary">Enregistrer</button></form>
+    <form method="post" action="{% url 'product_delete' product.id %}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">{% csrf_token %}
+      <button class="btn btn-danger btn-sm" data-confirm="Supprimer le produit « {{ product.name }} » ?">Supprimer le produit</button>
+      <span class="small muted">Possible seulement s'il n'a jamais été vendu ni commandé ; sinon, décochez « Actif ».</span>
+    </form>
+    {% else %}
+    <dl class="summary"><dt>Forme</dt><dd>{{ product.get_form_display }}</dd><dt>Prix de vente</dt><dd>{{ product.sale_price|fcfa }} / {{ product.unit }}{% if product.has_pack %} · {{ product.pack_price|fcfa }} / {{ product.pack_unit }} ({{ product.pack_size }}){% endif %}</dd>{% if product.supplier %}<dt>Fournisseur</dt><dd>{{ product.supplier }}</dd>{% endif %}{% if product.purchase_unit %}<dt>Achat</dt><dd>par {{ product.purchase_unit }} de {{ product.purchase_size }} {{ product.unit }}</dd>{% endif %}<dt>Seuil d'alerte</dt><dd>{{ product.reorder_level }}</dd></dl>
+    {% endif %}
+  </div>
+  </div>
   <div class="stack">
   {% if entry_form %}
   <div class="card" id="ajout">
@@ -30,14 +44,6 @@
     <form method="post" action="{% url 'stock_entry' product.id %}" class="form">{% csrf_token %}{{ entry_form.as_div }}<button class="btn btn-primary">Ajouter au stock</button></form>
   </div>
   {% endif %}
-  <div class="card">
-    <h2>Fiche produit</h2>
-    {% if form %}
-    <form method="post" class="form">{% csrf_token %}{% include "stock/_product_fields.html" %}<button class="btn btn-primary">Enregistrer</button></form>
-    {% else %}
-    <dl class="summary"><dt>Forme</dt><dd>{{ product.get_form_display }}</dd><dt>Prix de vente</dt><dd>{{ product.sale_price|fcfa }} / {{ product.unit }}{% if product.has_pack %} · {{ product.pack_price|fcfa }} / {{ product.pack_unit }} ({{ product.pack_size }}){% endif %}</dd>{% if product.purchase_unit %}<dt>Achat</dt><dd>par {{ product.purchase_unit }} de {{ product.purchase_size }} {{ product.unit }}</dd>{% endif %}<dt>Seuil d'alerte</dt><dd>{{ product.reorder_level }}</dd></dl>
-    {% endif %}
-  </div>
   </div>
 </div>
 {% endblock %}

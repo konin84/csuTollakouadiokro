@@ -19,17 +19,54 @@
   <div class="card kpi"><div class="label">Recette nette</div><div class="value">{{ total.net_total|fcfa }}</div><div class="sub">Entrées+Labo {{ total.net_entree|fcfa }} · Pharma+Écho {{ total.net_pharma|fcfa }}</div></div>
 </div>
 
+{% if detail %}
+{# un bloc par jour (lecture de haut en bas, sans défilement horizontal) : seulement les actes du jour #}
 <div class="card" style="margin-bottom:16px">
-  <h2>{% if detail %}Recettes par acte et par jour{% else %}Synthèse journalière{% endif %}</h2>
-  <div class="table-wrap"><table class="data compact">
-    {% if detail %}
-    <thead><tr><th>Date</th>{% for a in acts %}<th class="num">{{ a.name }}</th>{% endfor %}<th class="num">Pharmacie</th><th class="num">Total</th></tr></thead>
-    <tbody>{% for s, t in days %}<tr><td class="nowrap">{% if perms_app.caisse %}<a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"d/m" }}</a>{% else %}{{ s.date|date:"d/m" }}{% endif %}</td>{% for a in acts %}<td class="num">{{ t.acts_amount|get:a.id|num }}</td>{% endfor %}<td class="num">{{ t.pharmacy|num }}</td><td class="num strong">{{ t.gross|num0 }}</td></tr>{% endfor %}</tbody>
-    <tfoot>
-      <tr><td>Montant</td>{% for a in acts %}<td class="num">{{ total.acts_amount|get:a.id|num0 }}</td>{% endfor %}<td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td></tr>
-      <tr><td>Nombre</td>{% for a in acts %}<td class="num">{% if a.by_quantity %}{{ total.acts_qty|get:a.id|num0 }}{% endif %}</td>{% endfor %}<td></td><td></td></tr>
-    </tfoot>
+  <div class="card-head">
+    <h2>Recettes par acte et par jour</h2>
+    <span class="day-tools no-print">
+      <button type="button" class="btn btn-sm" data-days="open">Tout ouvrir</button>
+      <button type="button" class="btn btn-sm" data-days="close">Tout fermer</button>
+    </span>
+  </div>
+  <p class="small muted" style="margin-top:-4px"><b class="{% if days_entered < days_listed %}neg{% endif %}">{{ days_entered }} journée{{ days_entered|pluralize }} saisie{{ days_entered|pluralize }} sur {{ days_listed }}</b><span class="no-print"> · Cliquez sur un jour pour voir le détail de ses actes.</span></p>
+  <div class="day-list">
+  {% for d in day_details %}
+    {% if not d.session %}
+    <div class="day-row day-missing">
+      <div class="day-line">
+        <span></span>
+        <span class="day-date">{{ d.date|date:"l d/m"|capfirst }}</span>
+        <span class="day-meta">Journée non saisie{% if perms_app.ouverture %} · <a href="{% url 'session_detail' d.date|date:'Y-m-d' %}">ouvrir / saisir</a>{% endif %}</span>
+        <span class="day-total">—</span>
+      </div>
+    </div>
     {% else %}
+    <details class="day-row">
+      <summary>
+        <span class="day-date">{{ d.session.date|date:"l d/m"|capfirst }}</span>
+        <span class="day-meta">{% if d.totals.patients %}{{ d.totals.patients }} patient{{ d.totals.patients|pluralize }}{% endif %}</span>
+        <b class="day-total">{{ d.totals.gross|fcfa }}</b>
+      </summary>
+      <table class="data compact">
+        <tbody>
+        {% for l in d.lines %}<tr><td>{{ l.act.name }}</td><td class="num muted small">{% if l.price %}{{ l.qty }} × {{ l.price|num }}{% endif %}</td><td class="num">{{ l.amount|num0 }}</td></tr>{% endfor %}
+        {% if d.totals.pharmacy %}<tr><td>Pharmacie</td><td></td><td class="num">{{ d.totals.pharmacy|num0 }}</td></tr>{% endif %}
+        {% if not d.lines and not d.totals.pharmacy %}<tr><td colspan="3" class="muted">Aucune recette.</td></tr>{% endif %}
+        </tbody>
+      </table>
+      {% if perms_app.caisse %}<a class="small" href="{% url 'session_detail' d.session.date|date:'Y-m-d' %}">Ouvrir la journée de caisse →</a>{% endif %}
+    </details>
+    {% endif %}
+  {% empty %}<p class="muted">Aucune journée saisie.</p>{% endfor %}
+  </div>
+  <div class="day-month-total"><span>Total du mois</span><b>{{ total.gross|fcfa }}</b></div>
+  <p class="small muted" style="margin-top:8px">Totaux du mois par acte : voir « Activité du mois » ci-dessous.</p>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:16px">
+  <h2>Synthèse journalière</h2>
+  <div class="table-wrap"><table class="data compact">
     <thead><tr><th>Date</th><th class="num">Patients</th><th class="num">Entrées (hors labo)</th><th class="num">Labo</th><th class="num">Écho</th><th class="num">Pharmacie</th><th class="num">Brut</th><th class="num">Comm. reversées</th><th class="num">Dépenses</th><th class="num">Net Entrées+Labo</th><th class="num">Net Pharma+Écho</th><th class="num">Net</th><th>Statut</th></tr></thead>
     <tbody>{% for s, t in days %}<tr>
       <td class="nowrap">{% if perms_app.caisse %}<a href="{% url 'session_detail' s.date|date:'Y-m-d' %}">{{ s.date|date:"D d/m" }}</a>{% else %}{{ s.date|date:"D d/m" }}{% endif %}</td>
@@ -38,9 +75,9 @@
       <td class="num {% if t.net_entree|neg %}neg{% endif %}">{{ t.net_entree|num0 }}</td><td class="num {% if t.net_pharma|neg %}neg{% endif %}">{{ t.net_pharma|num0 }}</td><td class="num strong">{{ t.net_total|num0 }}</td>
       <td><span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span></td></tr>{% empty %}<tr><td colspan="13" class="muted">Aucune journée saisie.</td></tr>{% endfor %}</tbody>
     <tfoot><tr><td>Total</td><td class="num">{{ total.patients|num0 }}</td><td class="num">{{ total.entries_excl_lab|num0 }}</td><td class="num">{{ total.lab|num0 }}</td><td class="num">{{ total.echo|num0 }}</td><td class="num">{{ total.pharmacy|num0 }}</td><td class="num">{{ total.gross|num0 }}</td><td class="num">{{ total.commissions_paid|num0 }}</td><td class="num">{{ total.expenses_total|num0 }}</td><td class="num">{{ total.net_entree|num0 }}</td><td class="num">{{ total.net_pharma|num0 }}</td><td class="num">{{ total.net_total|num0 }}</td><td></td></tr></tfoot>
-    {% endif %}
   </table></div>
 </div>
+{% endif %}
 
 <div class="grid grid-2">
   <div class="card">
@@ -86,4 +123,21 @@
     <tbody>{% for x in expenses %}<tr><td class="nowrap">{{ x.session.date|date:"d/m" }}</td><td>{{ x.category.name }}</td><td>{{ x.description }}</td><td class="small muted">{{ x.get_fund_display }}</td><td class="num">{{ x.amount|num0 }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Aucune dépense.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+// Jours repliés : « Tout ouvrir / Tout fermer » ; à l'impression, tous les jours sont ouverts
+(function () {
+  var days = document.querySelectorAll('.day-row');
+  document.querySelectorAll('[data-days]').forEach(function (b) {
+    b.addEventListener('click', function () { days.forEach(function (d) { d.open = b.dataset.days === 'open'; }); });
+  });
+  var before = [];
+  window.addEventListener('beforeprint', function () {
+    before = Array.prototype.map.call(days, function (d) { return d.open; });
+    days.forEach(function (d) { d.open = true; });
+  });
+  window.addEventListener('afterprint', function () { days.forEach(function (d, i) { d.open = before[i]; }); });
+})();
+</script>
 {% endblock %}

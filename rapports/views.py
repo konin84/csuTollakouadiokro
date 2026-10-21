@@ -73,7 +73,14 @@ def stock(request):
     ctx["prev"] = f"{y - (m == 1)}-{(m - 2) % 12 + 1:02d}"
     ctx["next"] = f"{y + (m == 12)}-{m % 12 + 1:02d}"
     ctx["mois"] = f"{y}-{m:02d}"
+    # une vue par page : mouvements par produit, ou détail des entrées / pertes / ajustements
+    ctx["vue"] = request.GET.get("vue") if request.GET.get("vue") in STOCK_VIEWS else "produits"
+    ctx["views"] = [(key, label, len(ctx[key]) if key != "produits" else len(ctx["rows"]))
+                    for key, label in STOCK_VIEWS.items()]
     return render(request, "rapports/stock.html", ctx)
+
+
+STOCK_VIEWS = {"produits": "Produits", "entries": "Entrées", "losses": "Pertes", "adjustments": "Ajustements"}
 
 
 @require("rapport_stock")

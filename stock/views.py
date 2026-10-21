@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q, Sum
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -76,6 +77,22 @@ def stock_entry(request, pk):
     added = f"{packs} {product.purchase_unit}(s) = {units} {product.unit}(s)" if product.purchase_unit         else f"{units} {product.unit}(s)"
     messages.success(request, f"{added} ajouté(s) au stock de « {product.name} ».")
     return redirect("product_detail", pk=pk)
+
+
+@require_POST
+@require("stock")
+def product_delete(request, pk):
+    """Supprime un produit créé par erreur ; un produit déjà vendu ou commandé se désactive (« Actif »)."""
+    product = get_object_or_404(Product, pk=pk)
+    if product.has_history():
+        messages.error(request, f"« {product.name} » a déjà été vendu, commandé ou mouvementé : il ne peut pas être "
+                                "supprimé. Décochez « Actif » pour ne plus le proposer.")
+        return redirect("product_detail", pk=pk)
+    with transaction.atomic():
+        product.movements.all().delete()  # stock initial seulement
+        product.delete()
+    messages.success(request, f"Produit « {product.name} » supprimé.")
+    return redirect("product_list")
 
 
 @require("stock")
@@ -243,3 +260,16 @@ def loss(request):
         messages.success(request, "Sortie enregistrée.")
         return redirect("product_detail", pk=p.pk)
     return render(request, "stock/loss.html", {"form": form})
+
+
+@require_POST
+@require("stock")
+def supplier_quick_add(request):
+    """Nouveau fournisseur créé depuis la fiche produit (boîte de dialogue) : renvoie son id et son nom."""
+    from parametres.forms import SupplierForm
+
+    form = SupplierForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({"errors": {k: " ".join(v) for k, v in form.errors.items()}}, status=400)
+    supplier = form.save()
+    return JsonResponse({"id": supplier.id, "name": supplier.name})

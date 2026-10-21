@@ -84,8 +84,8 @@ Inventaire et Fournisseurs (il vend toujours les produits sur le reçu du patien
   (sous le seuil d'alerte défini sur la fiche produit).
 - **Conditionnement** (fiche produit) : le stock est compté dans la **plus petite unité vendue** (ex. comprimé).
   Pour un produit acheté par boîte et vendu par plaquette, remplir aussi :
-  *unité d'achat* « boîte » et *unités de stock par unité d'achat* 100 ; *autre unité de vente* « plaquette »,
-  *unités de stock par unité de vente* 10 et son *prix de vente*. Le *prix d'achat* est alors le prix d'une boîte.
+  *unité d'achat* « boîte » et *unités de stock par unité d'achat* 100 ; *conditionnement* « plaquette »,
+  *unités par conditionnement* 10 et son *prix de vente* (proposé automatiquement, modifiable). Le *prix d'achat* est alors le prix d'une boîte.
   Commandes, réceptions et ajouts de stock se saisissent **en boîtes** ; à la caisse, chaque produit se vend
   **au comprimé ou à la plaquette** (colonne « Vendu par ») ; inventaire et pertes se comptent **en comprimés**.
 - **Ajouter du stock** (achat direct, don) : ouvrir le produit → carte *Ajouter du stock* → quantité,

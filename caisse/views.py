@@ -368,7 +368,8 @@ def _visit_choices(session, visit=None):
             groups.append((label, []))
         groups[-1][1].append({"id": a.id, "name": a.name, "by_quantity": a.by_quantity,
                               "price": a.price_on(session.date)})
-    products = [{"id": p.id, "name": p.name, "unit": p.unit, "price": p.sale_price, "stock": p.qty or 0,
+    products = [{"id": p.id, "name": p.name, "code": p.code, "unit": p.unit, "price": p.sale_price,
+                 "stock": p.qty or 0,
                  "pack_unit": p.pack_unit if p.has_pack else "", "pack_size": p.pack_size or 1,
                  "pack_price": p.pack_price}
                 for p in Product.objects.filter(active=True).annotate(qty=Sum("movements__quantity"))]

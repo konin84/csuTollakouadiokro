@@ -1,7 +1,9 @@
 """Préparation des données des rapports (partagée entre l'écran et l'export Excel)."""
 from collections import defaultdict
+from datetime import timedelta
 
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from caisse import services
 from caisse.models import Deposit, Expense, PharmacySale
@@ -25,6 +27,23 @@ def monthly(year: int, month: int):
             continue
         activity.append({"act": a, "qty": qty, "amount": amount,
                          "price": a.price_on(end) if a.by_quantity else None})
+    # détail par jour, sans défilement horizontal : chaque jour du mois (jusqu'à aujourd'hui), avec seulement les
+    # actes réalisés ; un jour sans journée de caisse est signalé « non saisie » (fermé ou oublié ?)
+    by_date = {s.date: (s, t) for s, t in days}
+    first = max(start, facility.opening_date) if facility.opening_date else start
+    last = min(end, timezone.localdate())
+    day_details = []
+    d = first
+    while d <= last:
+        s, t = by_date.get(d, (None, None))
+        lines = []
+        if t:
+            lines = [{"act": a, "qty": t.acts_qty.get(a.id, 0), "amount": t.acts_amount.get(a.id, 0)}
+                     for a in acts if t.acts_amount.get(a.id, 0)]
+            for line in lines:
+                line["price"] = line["amount"] // line["qty"] if line["act"].by_quantity and line["qty"] else None
+        day_details.append({"date": d, "session": s, "totals": t, "lines": lines})
+        d += timedelta(days=1)
     expenses = list(Expense.objects.filter(session__facility=facility, session__date__range=(start, end))
                     .select_related("category", "session").order_by("session__date", "id"))
     deposits = list(Deposit.objects.filter(facility=facility, date__range=(start, end))
@@ -38,7 +57,9 @@ def monthly(year: int, month: int):
         "facility": facility,
         "year": year, "month": month, "month_name": f"{MONTHS_FR[month - 1]} {year}",
         "start": start, "end": end,
-        "total": total, "days": days, "acts": [x["act"] for x in activity], "activity": activity,
+        "total": total, "days": days, "day_details": day_details,
+        "days_entered": sum(1 for x in day_details if x["session"]), "days_listed": len(day_details),
+        "acts": [x["act"] for x in activity], "activity": activity,
         "expenses": expenses,
         "expenses_by_category": sorted(total.expenses_by_category.items(), key=lambda kv: -kv[1]),
         "deposits": deposits, "deposits_total": sum(d.amount for d in deposits),

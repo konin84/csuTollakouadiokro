@@ -38,6 +38,8 @@ class Product(models.Model):
     purchase_size = models.PositiveIntegerField("unités de stock par unité d'achat", default=1,
                                                 validators=[MinValueValidator(1)], help_text="Ex. 100 comprimés.")
     purchase_price = models.PositiveIntegerField("dernier prix d'achat par unité d'achat (F)", default=0)
+    supplier = models.ForeignKey("Supplier", null=True, blank=True, on_delete=models.SET_NULL, related_name="products",
+                                 verbose_name="fournisseur habituel")
     reorder_level = models.PositiveIntegerField("seuil d'alerte", default=0,
                                                 help_text="Alerte quand le stock descend à ce niveau.")
     active = models.BooleanField("actif", default=True)
@@ -57,6 +59,14 @@ class Product(models.Model):
             raise ValidationError({"pack_price": "Indiquez le prix de vente de cette unité."})
         if not self.purchase_unit:
             self.purchase_size = 1
+
+    def has_history(self):
+        """Déjà vendu, commandé ou mouvementé (autre que son stock initial) : ne peut plus être supprimé."""
+        from caisse.models import PharmacySale
+
+        return (PharmacySale.objects.filter(product=self).exists()
+                or self.purchaseorderline_set.exists()
+                or self.movements.exclude(kind=StockMovement.INITIAL).exists())
 
     @property
     def has_pack(self):

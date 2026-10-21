@@ -1,5 +1,8 @@
 {# Champs de la fiche produit, regroupés par sections (création et modification) #}
 {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors }}</div>{% endif %}
+{# deux colonnes sur grand écran (une seule si la place manque) : moins de défilement #}
+<div class="fieldset-columns">
+<div class="fieldset-column">
 <fieldset class="fieldset">
   <legend>1. Le produit</legend>
   <div class="form-grid">
@@ -19,8 +22,44 @@
 </fieldset>
 
 <fieldset class="fieldset">
-  <legend>3. Vente par plaquette, sachet… <span class="optional">facultatif</span></legend>
-  <p class="fieldset-help">Seulement si ce produit se vend aussi par lot. Ex. une plaquette de 10 comprimés à 200 F.</p>
+  <legend>5. Stock</legend>
+  <div class="form-grid">
+    <div>{{ form.reorder_level.as_field_group }}</div>
+    {% if form.active %}<div>{{ form.active.as_field_group }}</div>{% endif %}
+  </div>
+  {% if form.initial_stock %}
+  {# stock présent : comptage par conditionnement -> total (= stock initial, modifiable) ; cases de comptage sans « name » #}
+  <div class="stock-today" id="stock-count">
+    <h4>Stock présent aujourd'hui <span class="optional">facultatif</span></h4>
+    <p class="fieldset-help">Comptez ce qui est sur l'étagère : le total se calcule tout seul. Vous pouvez aussi saisir le total directement.</p>
+    <div class="count-row">
+      <div class="count-part" data-count="purchase">
+        <label><span class="count-label"></span> <small class="count-size"></small><input type="number" min="0" step="1" inputmode="numeric"></label>
+        <span class="count-op">+</span>
+      </div>
+      <div class="count-part" data-count="pack">
+        <label><span class="count-label"></span> <small class="count-size"></small><input type="number" min="0" step="1" inputmode="numeric"></label>
+        <span class="count-op">+</span>
+      </div>
+      <div class="count-part" data-count="unit">
+        <label><span class="count-label"></span> <small class="count-size"></small><input type="number" min="0" step="1" inputmode="numeric"></label>
+        <span class="count-op">=</span>
+      </div>
+      <div class="count-part count-total">
+        <label for="{{ form.initial_stock.id_for_label }}">Total en stock <small class="count-size" id="count-total-unit"></small>{{ form.initial_stock }}</label>
+      </div>
+    </div>
+    {{ form.initial_stock.errors }}
+  </div>
+  {% endif %}
+</fieldset>
+</div>
+
+<div class="fieldset-column">
+<fieldset class="fieldset">
+  <legend>3. Vente par conditionnement (plaquette, boîte…) <span class="optional">facultatif</span></legend>
+  <p class="fieldset-help">Seulement si ce produit se vend aussi entier. Ex. une plaquette de 10 comprimés à 200 F,
+    ou une boîte de 16 comprimés.</p>
   <div class="form-grid">
     <div>{{ form.pack_unit.as_field_group }}</div>
     <div>{{ form.pack_size.as_field_group }}</div>
@@ -30,25 +69,82 @@
 
 <fieldset class="fieldset">
   <legend>4. Achat chez le fournisseur</legend>
-  <p class="fieldset-help">Ex. une boîte de 100 comprimés à 1 500 F. Si vous achetez à l'unité, laissez les deux premières cases vides
-    et indiquez le prix d'une unité.</p>
+  <p class="fieldset-help">Comment le fournisseur vous livre ce produit. Ex. une boîte de 100 comprimés à 1 500 F.
+    Livré à l'unité : choisissez « À l'unité » et indiquez le prix d'une unité.</p>
   <div class="form-grid">
+    <div class="wide">{{ form.supplier.as_field_group }}</div>
+    <div>{% if perms_app.stock %}<button type="button" class="btn btn-sm" id="supplier-add" style="margin-bottom:6px">+ Nouveau fournisseur</button>{% endif %}</div>
     <div>{{ form.purchase_unit.as_field_group }}</div>
     <div>{{ form.purchase_size.as_field_group }}</div>
     <div>{{ form.purchase_price.as_field_group }}</div>
   </div>
+  <div class="alert alert-warn small" id="pack-conflict" hidden></div>
 </fieldset>
 
-<fieldset class="fieldset">
-  <legend>5. Stock</legend>
-  <div class="form-grid">
-    <div>{{ form.reorder_level.as_field_group }}</div>
-    {% if form.initial_stock %}<div>{{ form.initial_stock.as_field_group }}</div>{% endif %}
-    {% if form.active %}<div>{{ form.active.as_field_group }}</div>{% endif %}
+<div class="unit-summary" id="unit-summary" hidden><strong>En résumé</strong><ul id="unit-summary-list"></ul></div>
+</div>
+</div>
+
+{% if perms_app.stock %}
+{# Ajout d'un fournisseur sans quitter la fiche : champs sans « name », hors de l'envoi du formulaire produit #}
+<dialog class="dialog" id="supplier-dialog" aria-labelledby="supplier-dialog-title">
+  <h2 id="supplier-dialog-title">Nouveau fournisseur</h2>
+  <div class="alert alert-error" id="supplier-errors" hidden></div>
+  <div class="form">
+    <div><label for="new-supplier-name">Nom</label><input type="text" id="new-supplier-name" maxlength="160" placeholder="Ex. UBIPHARM"></div>
+    <div><label for="new-supplier-phone">Téléphone (facultatif)</label><input type="text" id="new-supplier-phone" maxlength="60" inputmode="tel"></div>
+    <div><label for="new-supplier-address">Adresse (facultatif)</label><input type="text" id="new-supplier-address" maxlength="200"></div>
   </div>
-</fieldset>
-
-<p class="unit-summary" id="unit-summary" hidden></p>
+  <div class="dialog-actions">
+    <button type="button" class="btn" data-close>Annuler</button>
+    <button type="button" class="btn btn-primary" id="supplier-save">Enregistrer</button>
+  </div>
+</dialog>
+<script>
+(function () {
+  var dialog = document.getElementById('supplier-dialog'), open = document.getElementById('supplier-add');
+  var select = document.getElementById('id_supplier'), errors = document.getElementById('supplier-errors');
+  var field = function (n) { return document.getElementById('new-supplier-' + n); };
+  if (!dialog || !open || !select) return;
+  open.addEventListener('click', function () {
+    ['name', 'phone', 'address'].forEach(function (n) { field(n).value = ''; });
+    errors.hidden = true;
+    dialog.showModal();
+    field('name').focus();
+  });
+  dialog.querySelector('[data-close]').addEventListener('click', function () { dialog.close(); });
+  function save() {
+    var data = new FormData();
+    data.append('name', field('name').value);
+    data.append('phone', field('phone').value);
+    data.append('address', field('address').value);
+    data.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    fetch("{% url 'supplier_quick_add' %}", {method: 'POST', body: data, credentials: 'same-origin'})
+      .then(function (r) { return r.json().then(function (body) { return {ok: r.ok, body: body}; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          errors.textContent = Object.values(res.body.errors || {}).join(' ') || "Fournisseur non enregistré.";
+          errors.hidden = false;
+          return;
+        }
+        var option = new Option(res.body.name, res.body.id, true, true);
+        // insertion par ordre alphabétique, après « — Aucun — »
+        var after = Array.prototype.find.call(select.options, function (o) {
+          return o.value && o.text.localeCompare(res.body.name, 'fr') > 0;
+        });
+        select.add(option, after || null);
+        select.value = String(res.body.id);
+        dialog.close();
+      })
+      .catch(function () { errors.textContent = "Connexion impossible : réessayez."; errors.hidden = false; });
+  }
+  document.getElementById('supplier-save').addEventListener('click', save);
+  dialog.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); save(); }   // ne pas envoyer la fiche produit
+  });
+})();
+</script>
+{% endif %}
 <script>
 // Résumé en clair du conditionnement saisi, mis à jour pendant la saisie
 (function () {
@@ -58,25 +154,118 @@
   var t = function (id) { return ((f(id) || {}).value || '').trim(); };
   var fmt = function (v) { return Math.round(v).toLocaleString('fr-FR'); };
   function update() {
-    var unit = t('unit') || 'unité', parts = [];
-    if (n('sale_price')) parts.push('1 ' + unit + ' vendu(e) ' + fmt(n('sale_price')) + ' F');
+    var unit = t('unit') || 'unité', units = unit + 's', lines = [];
+    var cost = 0;
+    if (n('sale_price')) lines.push(['Vente', '1 ' + unit + ' = ' + fmt(n('sale_price')) + ' F']);
     if (t('pack_unit') && n('pack_size') > 1) {
-      parts.push('1 ' + t('pack_unit') + ' = ' + n('pack_size') + ' ' + unit + 's' +
-                 (n('pack_price') ? ', vendue ' + fmt(n('pack_price')) + ' F' : ''));
+      lines.push(['Conditionnement', '1 ' + t('pack_unit') + ' = ' + n('pack_size') + ' ' + units +
+                  (n('pack_price') ? ', prix de vente ' + fmt(n('pack_price')) + ' F' : '')]);
     }
     if (t('purchase_unit') && n('purchase_size') > 1) {
-      var line = '1 ' + t('purchase_unit') + ' = ' + n('purchase_size') + ' ' + unit + 's';
+      var line = '1 ' + t('purchase_unit') + ' = ' + n('purchase_size') + ' ' + units;
       if (t('pack_unit') && n('pack_size') > 1 && n('purchase_size') % n('pack_size') === 0) {
         line += ' = ' + (n('purchase_size') / n('pack_size')) + ' ' + t('pack_unit') + 's';
       }
-      if (n('purchase_price')) line += ', achetée ' + fmt(n('purchase_price')) + ' F (soit ' + fmt(n('purchase_price') / n('purchase_size')) + ' F par ' + unit + ')';
-      parts.push(line);
+      if (n('purchase_price')) line += ", prix d'achat " + fmt(n('purchase_price')) + ' F';
+      lines.push(['Achat', line]);
+      if (n('purchase_price')) cost = n('purchase_price') / n('purchase_size');
+    } else if (n('purchase_price')) {
+      cost = n('purchase_price');
     }
-    box.textContent = parts.length ? 'En résumé : ' + parts.join(' · ') + '.' : '';
-    box.hidden = !parts.length;
+    if (cost) lines.push(["Coût d'achat", fmt(cost) + ' F par ' + unit]);
+    if (cost && n('sale_price')) {
+      var margin = n('sale_price') - cost;
+      lines.push(['Marge', fmt(margin) + ' F par ' + unit + ' (' + Math.round(100 * margin / n('sale_price')) + ' % du prix de vente)']);
+    }
+    // même mot, deux contenances (section 3 / section 4) : avertissement immédiat
+    var conflict = document.getElementById('pack-conflict');
+    if (conflict) {
+      var clash = t('pack_unit') && t('pack_unit') === t('purchase_unit') && n('pack_size') > 1
+                  && (n('purchase_size') || 1) !== n('pack_size');
+      conflict.hidden = !clash;
+      if (clash) {
+        conflict.textContent = 'Attention : « ' + t('pack_unit') + ' » contient ' + n('pack_size') + ' ' + units +
+          ' à la vente (section 3), mais ' + (n('purchase_size') || 1) + ' ici. Si le fournisseur livre ' +
+          (n('purchase_size') || 1) + ' ' + units + ' par paquet, choisissez « carton » ; sinon mettez Contient à ' +
+          n('pack_size') + '.';
+      }
+    }
+    var list = document.getElementById('unit-summary-list');
+    list.innerHTML = '';
+    lines.forEach(function (l) {
+      var li = document.createElement('li'), b = document.createElement('b');
+      b.textContent = l[0] + ' : ';
+      li.append(b, document.createTextNode(l[1]));
+      list.appendChild(li);
+    });
+    box.hidden = !lines.length;
   }
+  // Prix du conditionnement proposé automatiquement (prix de l'unité × nombre d'unités) ; dès que l'utilisateur
+  // tape son propre prix, il n'est plus remplacé ; vider le champ revient au calcul automatique.
+  var packPrice = f('pack_price');
+  var suggested = function () { return n('sale_price') * n('pack_size'); };
+  if (packPrice) {
+    // fiche existante : un prix différent du calcul a été choisi volontairement
+    packPrice.dataset.manual = n('pack_price') && n('pack_price') !== suggested() ? '1' : '';
+    packPrice.addEventListener('input', function () {
+      packPrice.dataset.manual = packPrice.value.trim() ? '1' : '';
+      if (!packPrice.dataset.manual) autoPack();
+    });
+  }
+  function autoPack() {
+    if (!packPrice || packPrice.dataset.manual) return;
+    var v = n('pack_size') > 1 ? suggested() : 0;
+    packPrice.value = v ? v : '';
+    packPrice.placeholder = v ? '' : '0';
+    update();
+  }
+  ['sale_price', 'pack_size'].forEach(function (id) { if (f(id)) f(id).addEventListener('input', autoPack); });
+
   ['unit', 'sale_price', 'pack_unit', 'pack_size', 'pack_price', 'purchase_unit', 'purchase_size', 'purchase_price']
     .forEach(function (id) { if (f(id)) f(id).addEventListener('input', update); });
   update();
+
+  // Stock présent : cases de comptage (conditionnements + unités seules) -> « Total en stock » (= stock initial),
+  // qui reste modifiable à la main
+  var count = document.getElementById('stock-count'), initial = f('initial_stock');
+  if (count && initial) {
+    var part = function (k) { return count.querySelector('[data-count="' + k + '"]'); };
+    var qty = function (k) { return parseInt(part(k).querySelector('input').value || 0, 10) || 0; };
+    var plural = function (w) { return /[sx]$/.test(w) ? w : w + 's'; };
+    var cap = function (w) { return w.charAt(0).toUpperCase() + w.slice(1); };
+    function sizes() {
+      return {
+        purchase: t('purchase_unit') && n('purchase_size') > 1 ? n('purchase_size') : 0,
+        pack: t('pack_unit') && n('pack_size') > 1 ? n('pack_size') : 0,
+      };
+    }
+    function labels() {
+      var sz = sizes(), units = plural(t('unit') || 'unité');
+      part('purchase').hidden = !sz.purchase;
+      part('pack').hidden = !sz.pack;
+      part('purchase').querySelector('.count-label').textContent = cap(plural(t('purchase_unit') || ''));
+      part('purchase').querySelector('.count-size').textContent = '(' + sz.purchase + ' ' + units + ')';
+      part('pack').querySelector('.count-label').textContent = cap(plural(t('pack_unit') || ''));
+      part('pack').querySelector('.count-size').textContent = '(' + sz.pack + ' ' + units + ')';
+      part('unit').querySelector('.count-label').textContent = cap(units);
+      part('unit').querySelector('.count-size').textContent = sz.purchase || sz.pack ? "(à l'unité)" : '';
+      document.getElementById('count-total-unit').textContent = '(' + units + ')';
+    }
+    function counting() {
+      return Array.prototype.some.call(count.querySelectorAll('.count-part:not(.count-total) input'), function (i) { return i.value; });
+    }
+    function compute() {
+      var sz = sizes();
+      var total = qty('purchase') * sz.purchase + qty('pack') * sz.pack + qty('unit');
+      initial.value = total || '';
+    }
+    count.addEventListener('input', function (ev) { if (ev.target !== initial) compute(); });
+    ['unit', 'pack_unit', 'pack_size', 'purchase_unit', 'purchase_size'].forEach(function (id) {
+      if (!f(id)) return;
+      f(id).addEventListener('input', function () { labels(); if (counting()) compute(); });
+      f(id).addEventListener('change', labels);
+    });
+    labels();
+  }
 })();
 </script>

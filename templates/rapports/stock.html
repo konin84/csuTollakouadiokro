@@ -4,7 +4,8 @@
 <div class="page-head">
   <div><div class="crumb">Rapports</div><h1>Rapport de stock – {{ month_name }}</h1></div>
   <div class="actions">
-    <span class="btn-group"><a class="btn btn-sm" href="?mois={{ prev }}">← Précédent</a><a class="btn btn-sm" href="?mois={{ next }}">Suivant →</a></span>
+    <span class="btn-group"><a class="btn btn-sm" href="?mois={{ prev }}&vue={{ vue }}">← Précédent</a><a class="btn btn-sm" href="?mois={{ next }}&vue={{ vue }}">Suivant →</a></span>
+    <span class="btn-group">{% for key, label, n in views %}<a class="btn btn-sm {% if key == vue %}is-current{% endif %}" href="?mois={{ mois }}&vue={{ key }}"{% if key == vue %} aria-current="page"{% endif %}>{{ label }} <span class="muted">({{ n }})</span></a>{% endfor %}</span>
     <a class="btn btn-sm" href="{% url 'report_stock_xlsx' %}?mois={{ mois }}">Excel</a>
     <button class="btn btn-sm" onclick="window.print()">Imprimer / PDF</button>
   </div>
@@ -18,6 +19,7 @@
   <div class="card kpi"><div class="label">Produits à commander</div><div class="value {% if low %}neg{% endif %}">{{ low|length }}</div><div class="sub">dont {{ out|length }} en rupture en fin de mois</div></div>
 </div>
 
+{% if vue == "produits" %}
 <div class="card" style="margin-bottom:16px">
   <h2>Mouvements par produit</h2>
   <div class="table-wrap"><table class="data compact">
@@ -41,31 +43,31 @@
   <p class="small muted" style="margin-top:6px">Stock fin = stock début + entrées − vendu − pertes ± ajustements d'inventaire. En surbrillance : stock au seuil d'alerte ou en dessous.</p>
 </div>
 
-<div class="split">
-  <div class="stack">
-    <div class="card">
-      <h2>Entrées du mois</h2>
-      <table class="data compact">
-        <thead><tr><th>Date</th><th>Produit</th><th>Origine</th><th class="num">Quantité</th><th class="num">Coût unitaire</th></tr></thead>
-        <tbody>{% for m in entries %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.get_kind_display }}{% if m.reference %} – {{ m.reference }}{% endif %}</td><td class="num">{{ m.quantity|num0 }}</td><td class="num">{{ m.unit_cost|num }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Aucune entrée.</td></tr>{% endfor %}</tbody>
-      </table>
-    </div>
-  </div>
-  <div class="stack">
-    <div class="card">
-      <h2>Pertes (périmés, casse)</h2>
-      <table class="data compact">
-        <thead><tr><th>Date</th><th>Produit</th><th>Motif</th><th class="num">Quantité</th></tr></thead>
-        <tbody>{% for m in losses %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.note|default:m.reference }}</td><td class="num">{{ m.quantity|num0 }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Aucune perte.</td></tr>{% endfor %}</tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h2>Ajustements d'inventaire</h2>
-      <table class="data compact">
-        <thead><tr><th>Date</th><th>Produit</th><th>Par</th><th class="num">Écart</th></tr></thead>
-        <tbody>{% for m in adjustments %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{% if m.created_by %}{{ m.created_by.get_full_name|default:m.created_by.username }}{% else %}—{% endif %}</td><td class="num {% if m.quantity|neg %}neg{% endif %}">{{ m.quantity|num0 }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Aucun ajustement.</td></tr>{% endfor %}</tbody>
-      </table>
-    </div>
-  </div>
+{% endif %}
+
+{% if vue == "entries" %}
+<div class="card">
+  <h2>Entrées du mois</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Date</th><th>Produit</th><th>Origine</th><th class="num">Quantité</th><th class="num">Coût unitaire</th><th>Par</th></tr></thead>
+    <tbody>{% for m in entries %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.get_kind_display }}{% if m.reference %} – {{ m.reference }}{% endif %}</td><td class="num">{{ m.quantity|num0 }} <span class="small muted">{{ m.product.unit }}</span></td><td class="num">{{ m.unit_cost|num }}</td><td class="small">{% if m.created_by %}{{ m.created_by.get_full_name|default:m.created_by.username }}{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="muted">Aucune entrée ce mois-ci.</td></tr>{% endfor %}</tbody>
+  </table></div>
 </div>
+{% elif vue == "losses" %}
+<div class="card">
+  <h2>Pertes (périmés, casse)</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Date</th><th>Produit</th><th>Motif</th><th class="num">Quantité</th><th>Par</th></tr></thead>
+    <tbody>{% for m in losses %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.note|default:m.reference }}</td><td class="num">{{ m.quantity|num0 }} <span class="small muted">{{ m.product.unit }}</span></td><td class="small">{% if m.created_by %}{{ m.created_by.get_full_name|default:m.created_by.username }}{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Aucune perte ce mois-ci.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% elif vue == "adjustments" %}
+<div class="card">
+  <h2>Ajustements d'inventaire</h2>
+  <div class="table-wrap"><table class="data compact">
+    <thead><tr><th>Date</th><th>Produit</th><th>Référence</th><th class="num">Écart</th><th>Par</th></tr></thead>
+    <tbody>{% for m in adjustments %}<tr><td class="nowrap">{{ m.date|date:"d/m" }}</td><td>{{ m.product.name }}</td><td class="small">{{ m.reference }}</td><td class="num {% if m.quantity|neg %}neg{% endif %}">{{ m.quantity|num0 }} <span class="small muted">{{ m.product.unit }}</span></td><td class="small">{% if m.created_by %}{{ m.created_by.get_full_name|default:m.created_by.username }}{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="5" class="muted">Aucun ajustement ce mois-ci.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
 {% endblock %}

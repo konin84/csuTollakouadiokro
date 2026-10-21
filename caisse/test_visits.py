@@ -268,3 +268,12 @@ class SupervisorReceiptRightsTests(VisitBase):
         self.client.force_login(self.boss)
         self.client.post("/caisse/ouvrir/", {"date": "2026-10-14"})
         self.assertTrue(CashSession.objects.filter(date=date(2026, 10, 14)).exists())
+
+
+class ProductSearchTests(VisitBase):
+    def test_receipt_form_loads_product_search_with_codes(self):
+        self.para.code = "PARA500"
+        self.para.save()
+        page = self.client.get(f"{URL}/vente-pharmacie/")
+        self.assertContains(page, "js/product-picker.js")
+        self.assertContains(page, 'data-code="PARA500"')

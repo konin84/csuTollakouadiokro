@@ -257,3 +257,24 @@ class ExpenseAccessTests(Base):
         self.client.force_login(self.cashier)
         self.assertEqual(self.client.post(f"/caisse/{day:%Y-%m-%d}/depense/{expense.id}/supprimer/").status_code, 403)
         self.assertTrue(Expense.objects.exists())
+
+
+class MonthlyDetailTests(Base):
+    def test_detail_lists_each_day_with_its_acts_only(self):
+        self.make_session(date(2026, 10, 15), cpn=2)
+        self.make_session(date(2026, 10, 16), **{"consultation-curative": 1})
+        self.client.force_login(self.boss)
+        r = self.client.get("/rapports/mensuel/?mois=2026-10&vue=detail")
+        days = [d for d in r.context["day_details"] if d["session"]]
+        self.assertEqual([[(l["act"].code, l["qty"], l["price"], l["amount"]) for l in d["lines"]] for d in days],
+                         [[("cpn", 2, 1000, 2000)], [("consultation-curative", 1, 1000, 1000)]])
+        self.assertContains(r, '<details class="day-row">', count=2)
+        self.assertContains(r, "2 × 1")
+
+    def test_every_day_of_the_month_is_listed_missing_ones_flagged(self):
+        self.make_session(date(2026, 9, 2), cpn=1)
+        self.client.force_login(self.boss)
+        r = self.client.get("/rapports/mensuel/?mois=2026-09&vue=detail")
+        self.assertEqual((r.context["days_listed"], r.context["days_entered"]), (30, 1))
+        self.assertContains(r, "1 journée saisie sur 30")
+        self.assertContains(r, "Journée non saisie", count=29)
