@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.db import transaction
+from django.core.paginator import Paginator
 from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -18,6 +19,11 @@ def _products_with_qty():
     return Product.objects.annotate(qty=Sum("movements__quantity"))
 
 
+PRODUCTS_PER_PAGE = 50
+MOVEMENTS_PER_PAGE = 50
+ORDERS_PER_PAGE = 20
+
+
 @require("pharmacie")
 def product_list(request):
     qs = _products_with_qty()
@@ -30,9 +36,10 @@ def product_list(request):
     products = list(qs)
     if show == "alerte":
         products = [p for p in products if p.active and p.reorder_level and (p.qty or 0) <= p.reorder_level]
-    value = sum(p.stock_value(p.qty) for p in products)
+    value = sum(p.stock_value(p.qty) for p in products)  # sur toute la sélection, pas seulement la page
     return render(request, "stock/product_list.html", {
-        "products": products, "q": q, "show": show, "stock_value": value,
+        "products": Paginator(products, PRODUCTS_PER_PAGE).get_page(request.GET.get("page")),
+        "q": q, "show": show, "stock_value": value,
         "can_stock": can(request.user, "stock"),
     })
 
@@ -49,7 +56,8 @@ def product_detail(request, pk, entry_form=None):
             messages.success(request, "Produit enregistré.")
             return redirect("product_detail", pk=pk)
         entry_form = entry_form or StockEntryForm(initial={"date": timezone.localdate()}, product=product)
-    movements = product.movements.select_related("created_by")[:200]
+    movements = Paginator(product.movements.select_related("created_by"), MOVEMENTS_PER_PAGE).get_page(
+        request.GET.get("page"))
     return render(request, "stock/product_detail.html", {"product": product, "form": form, "movements": movements,
                                                          "entry_form": entry_form})
 
@@ -113,8 +121,16 @@ def product_new(request):
 # --- Commandes -------------------------------------------------------------
 @require("pharmacie")
 def order_list(request):
-    orders = PurchaseOrder.objects.select_related("supplier").prefetch_related("lines")
-    return render(request, "stock/order_list.html", {"orders": orders, "can_stock": can(request.user, "stock")})
+    orders = PurchaseOrder.objects.select_related("supplier").prefetch_related("lines")  # plus récentes d'abord
+    status = request.GET.get("statut", "")
+    if status in dict(PurchaseOrder.STATUSES):
+        orders = orders.filter(status=status)
+    else:
+        status = ""
+    return render(request, "stock/order_list.html", {
+        "orders": Paginator(orders, ORDERS_PER_PAGE).get_page(request.GET.get("page")),
+        "status": status, "statuses": PurchaseOrder.STATUSES, "can_stock": can(request.user, "stock"),
+    })
 
 
 @require("stock")

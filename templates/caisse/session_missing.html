@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Journée du {{ day|date:"d/m/Y" }}{% endblock %}
 {% block content %}
+<div class="page-head">
+  <div><div class="crumb"><a href="{% url 'session_list' %}?mois={{ day|date:'Y-m' }}">Journées de {{ day|date:"F Y" }}</a></div></div>
+  <div class="actions"><span class="day-nav">
+    <a class="btn btn-sm" href="{% url 'session_detail' prev_day|date:'Y-m-d' %}" title="Jour précédent">← {{ prev_day|date:"d/m" }}</a>
+    {% if today_day %}<a class="btn btn-sm btn-primary" href="{% url 'session_detail' today_day|date:'Y-m-d' %}" title="Aujourd'hui">Aujourd'hui ({{ today_day|date:"d/m" }})</a>{% endif %}
+  </span></div>
+</div>
 <div class="card" style="max-width:560px">
   <h1>{{ day|date:"l j F Y"|capfirst }}</h1>
   <p class="muted">Cette journée n'a pas encore été ouverte.</p>

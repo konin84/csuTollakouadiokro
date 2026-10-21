@@ -20,11 +20,27 @@ def _month_param(request):
     return y, m
 
 
+PAST_YEARS = 5  # années précédentes toujours proposées, même sans données
+
+
+def _years():
+    """Années proposées, la plus récente en premier : l'année en cours et les PAST_YEARS précédentes, plus toute
+    année plus ancienne qui a des données (ex. ancien tableau Excel importé). Jamais d'année future."""
+    from caisse.models import CashSession
+
+    this_year = timezone.localdate().year
+    oldest = CashSession.objects.order_by("date").values_list("date", flat=True).first()
+    first = min(this_year - PAST_YEARS, oldest.year if oldest else this_year)
+    return list(range(this_year, first - 1, -1))
+
+
 def _year_param(request):
+    """Année demandée ; jamais dans le futur (au plus l'année en cours)."""
+    this_year = timezone.localdate().year
     try:
-        return int(request.GET.get("annee") or timezone.localdate().year)
+        return min(int(request.GET.get("annee") or this_year), this_year)
     except ValueError:
-        return timezone.localdate().year
+        return this_year
 
 
 @require("rapports")
@@ -51,6 +67,9 @@ def monthly_xlsx(request):
 def annual(request):
     y = _year_param(request)
     ctx = data.annual(y)
+    ctx["years"] = _years()
+    if y not in ctx["years"]:
+        ctx["years"] = sorted(set(ctx["years"]) | {y}, reverse=True)
     peak = max([r["t"].gross for r in ctx["rows"]] + [1])
     for r in ctx["rows"]:
         r["pct"] = round(100 * r["t"].gross / peak, 1)

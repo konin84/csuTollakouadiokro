@@ -45,7 +45,13 @@ def _editable(request, session, right="saisie"):
     return session.is_open and can(request.user, right)
 
 
-VISITS_PER_PAGE = 20
+DAY_ROWS_PER_PAGE = 10  # patients, ventes et dépenses de la journée : 10 lignes par page
+
+
+def _day_nav(day):
+    """Navigation entre journées : le jour précédent, et un retour à aujourd'hui (si on n'y est pas déjà)."""
+    today = timezone.localdate()
+    return {"prev_day": day - timedelta(days=1), "today_day": today if day != today else None}
 
 
 def _session_context(request, session):
@@ -85,7 +91,12 @@ def _session_context(request, session):
         "session": session,
         "totals": totals,
         "groups": groups,
-        "visits_page": Paginator(visits[::-1], VISITS_PER_PAGE).get_page(request.GET.get("patients")),
+        "visits_page": Paginator(visits[::-1], DAY_ROWS_PER_PAGE).get_page(request.GET.get("patients")),
+        "sales_page": Paginator(list(session.sales.select_related("product").order_by("-id")), DAY_ROWS_PER_PAGE)
+        .get_page(request.GET.get("ventes")),
+        "expenses_page": Paginator(list(session.expenses.select_related("category").order_by("-id")),
+                                   DAY_ROWS_PER_PAGE).get_page(request.GET.get("depenses")),
+        "session_url": reverse("session_detail", args=[f"{session.date:%Y-%m-%d}"]),
         "by_cashier": sorted(by_cashier.values(), key=lambda r: r["name"]),
         "editable": _editable(request, session),
         "can_sell": session.is_open and can(request.user, "ventes"),
@@ -100,8 +111,7 @@ def _session_context(request, session):
         "alerts": services.daily_alerts(session, totals),
         "close_form": CloseForm(initial={"notes": session.notes}),
         "reopen_form": ReopenForm(),
-        "prev_day": session.date - timedelta(days=1),
-        "next_day": session.date + timedelta(days=1),
+        **_day_nav(session.date),
         "tolerance": session.facility.cash_tolerance,
     }
 
@@ -115,9 +125,13 @@ def session_list(request):
         start, end = services.month_bounds(year, month)
     except ValueError:
         start, end = services.month_bounds(today.year, today.month)
+    if start > today:  # pas de mois futur
+        start, end = services.month_bounds(today.year, today.month)
     total, days = services.period_totals(start, end)
     prev_month = (start - timedelta(days=1)).replace(day=1)
     next_month = end + timedelta(days=1)
+    if next_month > today:
+        next_month = None
     missing = [d for d in services.missing_days(start, min(end, today))]
     return render(request, "caisse/session_list.html", {
         "start": start, "end": end, "days": days, "total": total,
@@ -148,15 +162,17 @@ def session_today(request):
     session = CashSession.objects.filter(facility=Facility.current(), date=today).first()
     if session:
         return redirect("session_detail", day=f"{today:%Y-%m-%d}")
-    return render(request, "caisse/session_missing.html", {"day": today})
+    return render(request, "caisse/session_missing.html", {"day": today, **_day_nav(today)})
 
 
 @require("caisse")
 def session_detail(request, day):
     d = _parse_day(day)
+    if d > timezone.localdate():  # pas de journée future
+        return redirect("session_detail", day=f"{timezone.localdate():%Y-%m-%d}")
     session = CashSession.objects.filter(facility=Facility.current(), date=d).first()
     if session is None:
-        return render(request, "caisse/session_missing.html", {"day": d})
+        return render(request, "caisse/session_missing.html", {"day": d, **_day_nav(d)})
     if session.is_open and can(request.user, "ouverture"):
         services.ensure_entries(session)
     session = _get_session(day)

@@ -22,6 +22,7 @@
       {% empty %}<tr><td colspan="5" class="muted">Aucun mouvement.{% if entry_form %} Utilisez « Ajouter du stock » pour saisir la quantité présente.{% endif %}</td></tr>{% endfor %}
       </tbody>
     </table></div>
+    {% include "_pager.html" with page=movements prev_label="← Plus récents" next_label="Plus anciens →" %}
   </div>
   <div class="card" id="fiche">
     <h2>Fiche produit</h2>

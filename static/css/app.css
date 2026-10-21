@@ -396,6 +396,14 @@ input[readonly] { background: var(--surface-2); color: var(--muted); }
   .tab-panel .print-only-row { display: table-row; }
 }
 
+/* --- Pagination ------------------------------------------------------------------ */
+.pager { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* --- Choix de la période (rapports) ---------------------------------------------- */
+.period-picker { display: inline-flex; align-items: center; gap: 6px; }
+.period-picker label { font-size: .9rem; color: var(--muted); }
+.period-picker select { width: auto; min-height: 32px; padding: 4px 30px 4px 10px; font-weight: 600; }
+
 /* --- Rapport mensuel : détail par jour ---------------------------------------- */
 .day-list { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .day-row { border-bottom: 1px solid var(--line); }

@@ -80,11 +80,11 @@ class VisitTests(VisitBase):
             self.post_visit(acts=[(self.cpn, 1, "")], patient_name=f"PATIENT {i:02d}")
         self.client.get(f"{URL}/")  # affiche (et vide) les messages « Reçu … enregistré »
         page = self.client.get(f"{URL}/")
-        self.assertContains(page, "Patients 1–20 sur 25")
+        self.assertContains(page, "Patients 1–10 sur 25")
         self.assertContains(page, "PATIENT 24")
-        self.assertNotContains(page, "PATIENT 04")
+        self.assertNotContains(page, "PATIENT 14")
         self.assertEqual(page.context["by_cashier"][0]["count"], 25)   # résumé : toute la journée
-        page2 = self.client.get(f"{URL}/?patients=2")
+        page2 = self.client.get(f"{URL}/?patients=3")
         self.assertContains(page2, "Patients 21–25 sur 25")
         self.assertContains(page2, "PATIENT 00")
         self.assertNotContains(page2, "PATIENT 24")
@@ -277,3 +277,21 @@ class ProductSearchTests(VisitBase):
         page = self.client.get(f"{URL}/vente-pharmacie/")
         self.assertContains(page, "js/product-picker.js")
         self.assertContains(page, 'data-code="PARA500"')
+
+
+class DayTablesPaginationTests(VisitBase):
+    def test_sales_and_expenses_ten_per_page(self):
+        from .models import Expense, ExpenseCategory, PharmacySale
+        for i in range(12):
+            PharmacySale.objects.create(session=self.session, description=f"VENTE {i:02d}", quantity=1, unit_price=100)
+            Expense.objects.create(session=self.session, category=ExpenseCategory.objects.first(), fund="ENTREE",
+                                   amount=100, description=f"DEPENSE {i:02d}")
+        self.client.force_login(self.boss)
+        page = self.client.get(f"{URL}/")
+        self.assertContains(page, "Ventes 1–10 sur 12")
+        self.assertContains(page, "Dépenses 1–10 sur 12")
+        self.assertContains(page, "VENTE 11")                      # plus récentes d'abord
+        self.assertNotContains(page, "VENTE 01")
+        self.assertContains(page, f'href="{URL}/?ventes=2"')
+        self.assertContains(self.client.get(f"{URL}/?ventes=2"), "VENTE 01")
+        self.assertContains(self.client.get(f"{URL}/?depenses=2"), "DEPENSE 00")

@@ -278,3 +278,59 @@ class MonthlyDetailTests(Base):
         self.assertEqual((r.context["days_listed"], r.context["days_entered"]), (30, 1))
         self.assertContains(r, "1 journée saisie sur 30")
         self.assertContains(r, "Journée non saisie", count=29)
+
+
+class AnnualYearPickerTests(Base):
+    def test_year_dropdown_lists_years_with_current_selected(self):
+        self.client.force_login(self.boss)
+        r = self.client.get("/rapports/annuel/?annee=2026")
+        self.assertContains(r, '<select name="annee"')
+        self.assertContains(r, '<option value="2026" selected>2026</option>', html=True)
+        self.assertNotContains(r, "2027 →")
+        self.assertEqual(r.context["years"][0], max(r.context["years"]))
+
+    def test_no_future_year(self):
+        from django.utils import timezone
+        this_year = timezone.localdate().year
+        self.client.force_login(self.boss)
+        r = self.client.get(f"/rapports/annuel/?annee={this_year + 1}")
+        self.assertEqual(r.context["year"], this_year)
+        self.assertEqual(r.context["years"][0], this_year)
+        self.assertNotContains(r, f'<option value="{this_year + 1}"')
+
+    def test_previous_years_always_offered(self):
+        from django.utils import timezone
+        this_year = timezone.localdate().year
+        self.client.force_login(self.boss)
+        r = self.client.get("/rapports/annuel/")
+        self.assertEqual(r.context["years"][:6], list(range(this_year, this_year - 6, -1)))
+        self.assertContains(r, f'<option value="{this_year - 1}">{this_year - 1}</option>', html=True)
+
+
+class NoFutureDaysTests(Base):
+    def test_day_and_month_navigation_stop_at_today(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        today = timezone.localdate()
+        self.make_session(today)
+        self.client.force_login(self.cashier)
+        page = self.client.get(f"/caisse/{today:%Y-%m-%d}/")
+        self.assertIsNone(page.context["today_day"])          # déjà aujourd'hui : pas de bouton
+        self.assertNotContains(page, "Aujourd'hui (")
+        tomorrow = today + timedelta(days=1)
+        self.assertRedirects(self.client.get(f"/caisse/{tomorrow:%Y-%m-%d}/"), f"/caisse/{today:%Y-%m-%d}/")
+        yesterday = today - timedelta(days=1)                   # journée pas ouverte : navigation aussi
+        missing = self.client.get(f"/caisse/{yesterday:%Y-%m-%d}/")
+        self.assertContains(missing, f"Aujourd'hui ({today:%d/%m})")
+        self.assertContains(missing, "Jour précédent")
+        self.assertNotContains(missing, "Jour suivant")
+        months = self.client.get("/caisse/")
+        self.assertIsNone(months.context["next_month"])
+        far = self.client.get(f"/caisse/?mois={today.year + 1}-01")
+        self.assertEqual(far.context["start"], today.replace(day=1))
+
+    def test_today_page_when_not_opened(self):
+        self.client.force_login(self.cashier)
+        r = self.client.get("/caisse/aujourdhui/")
+        self.assertContains(r, "pas encore été ouverte")
+        self.assertNotContains(r, "Aujourd'hui (")

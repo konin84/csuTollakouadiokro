@@ -6,7 +6,7 @@
   <div class="actions">
     <span class="btn-group">
       <a class="btn btn-sm" href="?mois={{ prev_month|date:'Y-m' }}">← {{ prev_month|date:"M Y" }}</a>
-      <a class="btn btn-sm" href="?mois={{ next_month|date:'Y-m' }}">{{ next_month|date:"M Y" }} →</a>
+      {% if next_month %}<a class="btn btn-sm" href="?mois={{ next_month|date:'Y-m' }}">{{ next_month|date:"M Y" }} →</a>{% endif %}
     </span>
     {% if perms_app.ouverture %}
     <form method="post" action="{% url 'session_open' %}" style="display:flex;gap:6px">{% csrf_token %}

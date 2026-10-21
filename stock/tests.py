@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth.models import Group, User
 
@@ -551,3 +551,39 @@ class PackagingConflictTests(StockBase):
         self.client.post("/stock/produit/nouveau/", {**self.BASE, "name": "AMOX BIS", "purchase_unit": "boîte",
                                                      "purchase_size": 10})
         self.assertTrue(Product.objects.filter(name="AMOX BIS").exists())
+
+
+class PaginationTests(StockBase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.pharma)
+
+    def test_orders_paginated_with_status_filter(self):
+        for i in range(25):
+            PurchaseOrder.objects.create(number=f"BC-2026-{i:03d}", date=date(2026, 1, 1) + timedelta(days=i),
+                                         status=PurchaseOrder.RECEIVED if i < 5 else PurchaseOrder.DRAFT)
+        r = self.client.get("/stock/commandes/")
+        self.assertEqual(len(r.context["orders"]), 20)
+        self.assertEqual(r.context["orders"][0].number, "BC-2026-024")            # plus récente d'abord
+        self.assertContains(r, "1–20 sur 25")
+        self.assertEqual(len(self.client.get("/stock/commandes/?page=2").context["orders"]), 5)
+        recues = self.client.get("/stock/commandes/?statut=RECUE")
+        self.assertEqual(recues.context["orders"].paginator.count, 5)
+        self.assertNotContains(recues, "Plus anciennes")
+
+    def test_all_movements_reachable(self):
+        p = self.product("VITAMINE C", initial=1000)
+        for i in range(60):
+            StockMovement.objects.create(product=p, date=date(2026, 10, 1), kind=StockMovement.LOSS, quantity=-1)
+        r = self.client.get(f"/stock/produit/{p.id}/")
+        self.assertContains(r, "1–50 sur 61")
+        self.assertEqual(len(self.client.get(f"/stock/produit/{p.id}/?page=2").context["movements"]), 11)
+
+    def test_stock_list_keeps_search_between_pages(self):
+        for i in range(55):
+            self.product(f"PRODUIT {i:02d}", initial=1, purchase_price=10)
+        r = self.client.get("/stock/?q=produit&voir=actifs")
+        self.assertContains(r, "55 produit(s)")
+        self.assertEqual(r.context["stock_value"], 550)                             # toute la sélection
+        self.assertContains(r, "?q=produit&amp;voir=actifs&amp;page=2")
+        self.assertEqual(len(self.client.get("/stock/?q=produit&voir=actifs&page=2").context["products"]), 5)

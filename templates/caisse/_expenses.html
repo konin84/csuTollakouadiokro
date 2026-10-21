@@ -4,7 +4,7 @@
   <div class="table-wrap"><table class="data">
     <thead><tr><th>Catégorie</th><th>Motif</th><th>Payée sur</th><th></th><th class="num">Montant</th>{% if can_spend %}<th></th>{% endif %}</tr></thead>
     <tbody>
-    {% for x in session.expenses.all %}
+    {% for x in expenses_page %}
       <tr>
         <td>{{ x.category.name }}</td>
         <td>{{ x.description }}{% if x.beneficiary %}<div class="small muted">{{ x.beneficiary }}</div>{% endif %}</td>
@@ -16,6 +16,7 @@
     {% empty %}<tr><td colspan="6" class="muted">Aucune dépense ce jour.</td></tr>{% endfor %}
     </tbody>
   </table></div>
+  {% include "caisse/_section_pager.html" with page=expenses_page param="depenses" target="expenses" noun="Dépenses" %}
   {% if can_spend %}
   <form class="form-grid" style="margin-top:12px" hx-post="{% url 'expense_add' session.date|date:'Y-m-d' %}" hx-encoding="multipart/form-data" hx-target="#expenses" hx-swap="outerHTML">
     {% if expense_form.errors %}<div class="alert alert-error wide">{{ expense_form.errors }}</div>{% endif %}

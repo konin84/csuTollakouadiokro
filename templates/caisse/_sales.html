@@ -5,7 +5,7 @@
   <div class="table-wrap"><table class="data">
     <thead><tr><th>Produit / libellé</th><th class="num">Quantité</th><th class="num">Prix unitaire</th><th class="num">Montant</th>{% if can_sell %}<th></th>{% endif %}</tr></thead>
     <tbody>
-    {% for s in session.sales.all %}
+    {% for s in sales_page %}
       <tr>
         <td>{% if s.product %}{% if perms_app.pharmacie %}<a href="{% url 'product_detail' s.product_id %}">{{ s.product.name }}</a>{% else %}{{ s.product.name }}{% endif %}{% else %}{{ s.description|default:"Ventes pharmacie" }}{% endif %}{% if s.visit_id %} <a class="small muted" href="{% url 'visit_receipt' session.date|date:'Y-m-d' s.visit_id %}">{{ s.description }}</a>{% endif %}</td>
         <td class="num">{% if s.product %}{{ s.quantity }} <span class="small muted">{{ s.unit_label }}</span>{% endif %}</td>
@@ -16,4 +16,5 @@
     {% empty %}<tr><td colspan="5" class="muted">Aucun médicament vendu.{% if can_sell %} Client venu seulement pour la pharmacie : « Vente de médicaments ». Patient : ajoutez les produits sur son reçu.{% endif %}</td></tr>{% endfor %}
     </tbody>
   </table></div>
+  {% include "caisse/_section_pager.html" with page=sales_page param="ventes" target="sales" noun="Ventes" %}
 </section>

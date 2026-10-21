@@ -5,13 +5,23 @@
   <div><div class="crumb">Pharmacie</div><h1>Commandes</h1></div>
   <div class="actions">{% if can_stock %}<a class="btn btn-primary" href="{% url 'order_new' %}">Nouvelle commande</a>{% endif %}</div>
 </div>
+<form method="get" class="period-picker no-print" style="margin-bottom:12px">
+  <label for="statut">Afficher :</label>
+  <select name="statut" id="statut" onchange="this.form.submit()">
+    <option value="">Toutes les commandes</option>
+    {% for code, label in statuses %}<option value="{{ code }}" {% if code == status %}selected{% endif %}>{{ label }}s</option>{% endfor %}
+  </select>
+  <noscript><button class="btn btn-sm">Afficher</button></noscript>
+</form>
 <div class="card"><div class="table-wrap"><table class="data">
   <thead><tr><th>N°</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th class="num">Lignes</th><th class="num">Montant</th><th>Reçue le</th></tr></thead>
   <tbody>
   {% for o in orders %}
     <tr><td><a href="{% url 'order_detail' o.id %}">{{ o.number }}</a></td><td>{{ o.date|date:"d/m/Y" }}</td><td>{{ o.supplier|default:"—" }}</td>
       <td><span class="badge badge-{{ o.status }}">{{ o.get_status_display }}</span></td><td class="num">{{ o.lines.all|length }}</td><td class="num">{{ o.total|num0 }}</td><td>{{ o.received_date|date:"d/m/Y" }}</td></tr>
-  {% empty %}<tr><td colspan="7" class="muted">Aucune commande.</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="7" class="muted">Aucune commande{% if status %} avec ce statut{% endif %}.</td></tr>{% endfor %}
   </tbody>
-</table></div></div>
+</table></div>
+{% include "_pager.html" with page=orders prev_label="← Plus récentes" next_label="Plus anciennes →" %}
+</div>
 {% endblock %}

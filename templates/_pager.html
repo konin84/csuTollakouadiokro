@@ -1,0 +1,9 @@
+{# Pagination commune : boutons ← / → et position ; garde les autres filtres de l'adresse (recherche, statut…). #}
+{# Paramètres : page (objet Page), prev_label, next_label #}
+{% if page.has_other_pages %}
+<nav class="pager no-print" aria-label="Pages">
+  {% if page.has_previous %}<a class="btn btn-sm" href="{% querystring page=page.previous_page_number %}">{{ prev_label|default:"← Précédents" }}</a>{% endif %}
+  <span class="muted small">{{ page.start_index }}–{{ page.end_index }} sur {{ page.paginator.count }}</span>
+  {% if page.has_next %}<a class="btn btn-sm" href="{% querystring page=page.next_page_number %}">{{ next_label|default:"Suivants →" }}</a>{% endif %}
+</nav>
+{% endif %}

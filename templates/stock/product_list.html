@@ -23,7 +23,7 @@
   </select></div>
 </form>
 <div class="card" id="products">
-  <div class="card-head"><h2>{{ products|length }} produit(s)</h2><span class="muted">Valeur du stock (prix d'achat) : <b>{{ stock_value|fcfa }}</b></span></div>
+  <div class="card-head"><h2>{{ products.paginator.count }} produit(s)</h2><span class="muted">Valeur du stock (prix d'achat) : <b>{{ stock_value|fcfa }}</b></span></div>
   <div class="table-wrap"><table class="data">
     <thead><tr><th>Produit</th><th>Forme</th><th class="num">En stock</th><th class="num">Seuil</th><th class="num">Prix d'achat</th><th class="num">Prix de vente</th><th></th></tr></thead>
     <tbody>
@@ -40,5 +40,6 @@
     {% empty %}<tr><td colspan="7" class="muted">{% if q %}Aucun produit ne correspond à « {{ q }} ».{% else %}Aucun produit.{% endif %}</td></tr>{% endfor %}
     </tbody>
   </table></div>
+  {% include "_pager.html" with page=products %}
 </div>
 {% endblock %}

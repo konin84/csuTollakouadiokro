@@ -1,0 +1,11 @@
+{# Pagination d'une section de la journée (patients, ventes, dépenses) : recharge seulement la section. #}
+{# Paramètres : page, param (nom dans l'adresse), target (id de la section), noun, prev_label, next_label #}
+{% if page.has_other_pages %}
+{% with base=session_url|default:request.path %}
+<nav class="pager no-print" aria-label="Pages">
+  {% if page.has_previous %}<a class="btn btn-sm" href="{{ base }}?{{ param }}={{ page.previous_page_number }}" hx-get="{{ base }}?{{ param }}={{ page.previous_page_number }}" hx-select="#{{ target }}" hx-target="#{{ target }}" hx-swap="outerHTML">{{ prev_label|default:"← Plus récents" }}</a>{% endif %}
+  <span class="muted small">{{ noun }} {{ page.start_index }}–{{ page.end_index }} sur {{ page.paginator.count }}</span>
+  {% if page.has_next %}<a class="btn btn-sm" href="{{ base }}?{{ param }}={{ page.next_page_number }}" hx-get="{{ base }}?{{ param }}={{ page.next_page_number }}" hx-select="#{{ target }}" hx-target="#{{ target }}" hx-swap="outerHTML">{{ next_label|default:"Plus anciens →" }}</a>{% endif %}
+</nav>
+{% endwith %}
+{% endif %}

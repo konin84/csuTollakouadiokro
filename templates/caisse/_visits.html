@@ -19,13 +19,5 @@
     {% empty %}<tr><td colspan="5" class="muted">Aucun patient enregistré.{% if editable %} Cliquez sur « Nouveau patient » à chaque passage à la caisse.{% endif %}</td></tr>{% endfor %}
     </tbody>
   </table></div>
-  {% if visits_page.has_other_pages %}
-  <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
-    {% with base=request.path %}
-    {% if visits_page.has_previous %}<a class="btn btn-sm" href="{{ base }}?patients={{ visits_page.previous_page_number }}" hx-get="{{ base }}?patients={{ visits_page.previous_page_number }}" hx-select="#visits" hx-target="#visits" hx-swap="outerHTML" hx-push-url="true">← Plus récents</a>{% endif %}
-    <span class="muted small">Patients {{ visits_page.start_index }}–{{ visits_page.end_index }} sur {{ visits_page.paginator.count }}</span>
-    {% if visits_page.has_next %}<a class="btn btn-sm" href="{{ base }}?patients={{ visits_page.next_page_number }}" hx-get="{{ base }}?patients={{ visits_page.next_page_number }}" hx-select="#visits" hx-target="#visits" hx-swap="outerHTML" hx-push-url="true">Plus anciens →</a>{% endif %}
-    {% endwith %}
-  </div>
-  {% endif %}
+  {% include "caisse/_section_pager.html" with page=visits_page param="patients" target="visits" noun="Patients" %}
 </section>
