@@ -1,8 +1,8 @@
-.venv/
-.env
-data/
-staticfiles/
-deploiement/
+/.venv/
+/.env
+/data/
+/staticfiles/
+/deploiement/
 **/__pycache__/
 *.pyc
-aip.png
+/aip.png
