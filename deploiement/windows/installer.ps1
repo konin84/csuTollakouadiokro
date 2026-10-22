@@ -10,7 +10,7 @@
   Le script peut être relancé : il ne recrée que ce qui manque et ne supprime aucune donnée.
 #>
 param(
-    [string]$Nom = "Centre de Santé Urbain (CSU) de Tollakouadiokro",
+    [string]$Nom = "Centre de Santé Urbain (CSU) de KOTIAKOFFIKRO",
     [int]$Port = 80,
     [string]$DossierCopieSauvegarde = "",
     [string]$HeureSauvegarde = "20:00",

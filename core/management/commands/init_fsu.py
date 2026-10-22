@@ -3,7 +3,7 @@ tarifs, règles de commission, catégories de dépenses, comptes bancaires.
 
 La commande peut être relancée sans risque : elle ne crée que ce qui manque.
 
-    python manage.py init_fsu --nom "Centre de Santé Urbain (CSU) de Tollakouadiokro" --demarrage 2026-01-01
+    python manage.py init_fsu --nom "Centre de Santé Urbain (CSU) de KOTIAKOFFIKRO" --demarrage 2026-01-01
 
 Compte superviseur : créé seulement si aucun utilisateur n'a le rôle Superviseur.
 Identifiant « konin » par défaut (--superviseur) ; mot de passe : --mot-de-passe-superviseur,
@@ -62,7 +62,7 @@ class Command(BaseCommand):
     help = "Initialise les données de base de l'application (sans écraser l'existant)."
 
     def add_arguments(self, parser):
-        parser.add_argument("--nom", default="Centre de Santé Urbain (CSU) de Tollakouadiokro", help="Nom de l'établissement")
+        parser.add_argument("--nom", default="Centre de Santé Urbain (CSU) de KOTIAKOFFIKRO", help="Nom de l'établissement")
         parser.add_argument("--demarrage", default="2026-01-01",
                             help="Date à partir de laquelle les tarifs et commissions s'appliquent (AAAA-MM-JJ)")
         parser.add_argument("--superviseur", default="konin",

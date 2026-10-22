@@ -66,7 +66,7 @@ class AccessTests(SettingsBase):
 class FacilityTests(SettingsBase):
     def test_edit_facility_is_logged(self):
         r = self.client.post("/parametres/etablissement/", {
-            "name": " CCentre de Santé Urbain (CSU) de Tollakouadiokroentre de Santé Urbain (CSU) de Tollakouadiokro", "short_name": "FSU KK", "address": "", "phone": "",
+            "name": " CCentre de Santé Urbain (CSU) de KOTIAKOFFIKROentre de Santé Urbain (CSU) de KOTIAKOFFIKRO", "short_name": "FSU KK", "address": "", "phone": "",
             "opening_date": "2026-01-01", "opening_cash": 25000, "cash_tolerance": 500})
         self.assertRedirects(r, "/parametres/")
         self.assertEqual(Facility.current().opening_cash, 25000)
