@@ -3,10 +3,16 @@
 {% block content %}
 <div class="page-head">
   <div><div class="crumb">Superviseur</div><h1>Versements bancaires {{ year }}</h1></div>
-  <div class="actions"><span class="btn-group">
-    <a class="btn btn-sm" href="?annee={{ year|add:-1 }}">← {{ year|add:-1 }}</a>
-    <a class="btn btn-sm" href="?annee={{ year|add:1 }}">{{ year|add:1 }} →</a>
-  </span></div>
+  <div class="actions">
+    {# choix de l'année (jamais une année future) : la page change dès qu'on choisit #}
+    <form method="get" class="period-picker">
+      <label for="annee">Année :</label>
+      <select name="annee" id="annee" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn btn-sm">Afficher</button></noscript>
+    </form>
+  </div>
 </div>
 <div class="split">
   <div class="stack">

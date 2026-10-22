@@ -306,6 +306,17 @@ class AnnualYearPickerTests(Base):
         self.assertEqual(r.context["years"][:6], list(range(this_year, this_year - 6, -1)))
         self.assertContains(r, f'<option value="{this_year - 1}">{this_year - 1}</option>', html=True)
 
+    def test_deposits_page_has_no_future_year(self):
+        from django.utils import timezone
+        this_year = timezone.localdate().year
+        self.client.force_login(self.boss)
+        r = self.client.get(f"/versements/?annee={this_year + 1}")
+        self.assertEqual(r.context["year"], this_year)
+        self.assertContains(r, f'<option value="{this_year}" selected>{this_year}</option>', html=True)
+        self.assertNotContains(r, f"{this_year + 1}")
+        r = self.client.get(f"/versements/?annee={this_year - 1}")
+        self.assertContains(r, f'<option value="{this_year - 1}" selected>{this_year - 1}</option>', html=True)
+
 
 class NoFutureDaysTests(Base):
     def test_day_and_month_navigation_stop_at_today(self):

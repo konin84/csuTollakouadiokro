@@ -306,10 +306,10 @@ def session_reopen(request, day):
 @require("banque")
 def deposit_list(request):
     today = timezone.localdate()
-    try:
-        year = int(request.GET.get("annee") or today.year)
-    except ValueError:
-        year = today.year
+    year = services.requested_year(request.GET.get("annee"))
+    years = services.year_choices()
+    if year not in years:
+        years = sorted(set(years) | {year}, reverse=True)
     deposits = Deposit.objects.filter(facility=Facility.current(), date__year=year).select_related("account")
     form = None
     if can(request.user, "versement"):
@@ -324,7 +324,7 @@ def deposit_list(request):
         months.append({"start": start, "net": total.net_total, "handed_over": services.handovers_total(start, end),
                        "deposited": dep, "by_fund": total.net_by_fund()})
     return render(request, "caisse/deposit_list.html", {
-        "deposits": deposits, "form": form, "year": year, "months": months,
+        "deposits": deposits, "form": form, "year": year, "years": years, "months": months,
         "cash_now": services.cash_balance(today), "supervisor_cash": services.supervisor_balance(today),
         "today": today,
         "fund_labels": FUND_LABELS, "funds": FUNDS,

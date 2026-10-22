@@ -18,6 +18,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db.models import Prefetch, Sum
+from django.utils import timezone
 
 from core.models import Facility
 
@@ -233,6 +234,28 @@ def supervisor_balance(upto: date, facility=None, include_day=True) -> int:
     if end < start:
         return 0
     return handovers_total(start, end, facility) - deposits_total(start, end, facility, from_till=False)
+
+
+PAST_YEARS = 5  # années précédentes toujours proposées, même sans données
+
+
+def year_choices():
+    """Années proposées dans les listes « Année », la plus récente en premier : l'année en cours et les PAST_YEARS
+    précédentes, plus toute année plus ancienne qui a des données (ex. ancien tableau Excel importé).
+    Jamais d'année future."""
+    this_year = timezone.localdate().year
+    oldest = CashSession.objects.order_by("date").values_list("date", flat=True).first()
+    first = min(this_year - PAST_YEARS, oldest.year if oldest else this_year)
+    return list(range(this_year, first - 1, -1))
+
+
+def requested_year(value):
+    """Année demandée (paramètre ?annee=) ; jamais dans le futur (au plus l'année en cours)."""
+    this_year = timezone.localdate().year
+    try:
+        return min(int(value or this_year), this_year)
+    except ValueError:
+        return this_year
 
 
 def month_bounds(year: int, month: int):
