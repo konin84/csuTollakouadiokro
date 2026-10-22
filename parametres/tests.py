@@ -4,7 +4,7 @@ from django.contrib.auth.models import Group, User
 from django.utils import timezone
 
 from caisse import services
-from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory
+from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory, name_key
 from caisse.tests import Base
 from core.models import AuditLog, Facility
 from stock.models import Supplier
@@ -165,6 +165,17 @@ class ActTests(SettingsBase):
         self.client.post(f"/parametres/actes/{act.id}/tarif/{past.id}/supprimer/")
         self.client.post(f"/parametres/actes/{act.id}/tarif/{future.id}/supprimer/")
         self.assertEqual(list(act.prices.all()), [past])
+
+    def test_acts_are_listed_alphabetically(self):
+        names = [a.name for a in self.client.get("/parametres/actes/").context["acts"]]
+        self.assertEqual(names, sorted(names, key=name_key))
+        self.assertLess(names.index("CPN"), names.index("Échographie"))
+        self.assertLess(names.index("Échographie"), names.index("Gant"))
+
+    def test_search_ignores_accents_and_case(self):
+        r = self.client.get("/parametres/actes/", {"q": "ECHO"})
+        self.assertEqual([a.name for a in r.context["acts"]], ["Échographie"])
+        self.assertContains(self.client.get("/parametres/actes/", {"q": "zzz"}), "Aucun acte ne correspond")
 
 class SimpleListTests(SettingsBase):
     def test_commission_change_applies_without_restart(self):

@@ -5,7 +5,13 @@
   <div><div class="crumb">{% if perms_app.parametres %}<a href="{% url 'param_index' %}">Paramètres</a>{% else %}Administration{% endif %}</div><h1>Actes et tarifs</h1></div>
   <div class="actions"><a class="btn btn-primary" href="{% url 'param_act_new' %}">Nouvel acte</a></div>
 </div>
-<div class="card"><div class="table-wrap"><table class="data">
+{# recherche dynamique : la liste se met à jour pendant la saisie (htmx), sans recharger la page #}
+<form class="card form-grid no-print" method="get" style="margin-bottom:14px"
+      hx-get="{% url 'param_acts' %}" hx-trigger="input changed delay:250ms from:[name=q], search from:[name=q], submit"
+      hx-target="#acts" hx-select="#acts" hx-swap="outerHTML" hx-push-url="true">
+  <div class="wide"><label>Recherche</label><input type="search" name="q" value="{{ q }}" placeholder="Nom de l'acte" autocomplete="off" autofocus></div>
+</form>
+<div class="card" id="acts"><div class="table-wrap"><table class="data">
   <thead><tr><th>Acte</th><th>Catégorie</th><th>Caisse</th><th class="num">Tarif actuel</th><th>Prochain tarif</th><th></th></tr></thead>
   <tbody>
   {% for a in acts %}
@@ -17,7 +23,7 @@
       <td class="small">{% if a.next_price %}{{ a.next_price.price|fcfa }} dès le {{ a.next_price.valid_from|date:"d/m/Y" }}{% endif %}</td>
       <td>{% if not a.active %}<span class="badge badge-ANNULEE">Inactif</span>{% endif %}</td>
     </tr>
-  {% empty %}<tr><td colspan="6" class="muted">Aucun acte.</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="6" class="muted">{% if q %}Aucun acte ne correspond à « {{ q }} ».{% else %}Aucun acte.{% endif %}</td></tr>{% endfor %}
   </tbody>
 </table></div></div>
 {% endblock %}

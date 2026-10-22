@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from caisse.models import Act, ActEntry, ActPrice, BankAccount, CommissionRule, ExpenseCategory
+from caisse.models import Act, ActEntry, ActPrice, BankAccount, CommissionRule, ExpenseCategory, name_key
 from core.audit import log
 from core.models import Facility
 from core.roles import can, require
@@ -192,12 +192,16 @@ def user_password(request, pk):
 @require("actes")
 def act_list(request):
     today = timezone.localdate()
-    acts = list(Act.objects.prefetch_related("prices"))
+    q = request.GET.get("q", "").strip()
+    acts = Act.objects.prefetch_related("prices")
+    if q:  # accents et majuscules ignorés : « echo » trouve « Échographie »
+        acts = acts.filter(name_key__contains=name_key(q))
+    acts = list(acts)
     for act in acts:
         current = [p for p in act.prices.all() if p.valid_from <= today]
         act.current_price = current[0].price if current else None
         act.next_price = next((p for p in reversed(act.prices.all()) if p.valid_from > today), None)
-    return render(request, "parametres/act_list.html", {"acts": acts})
+    return render(request, "parametres/act_list.html", {"acts": acts, "q": q})
 
 
 @require("actes")
