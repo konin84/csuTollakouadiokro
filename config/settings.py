@@ -42,7 +42,22 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = env_bool("DEBUG", False)
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "data"))
+# --- Hébergement en ligne (Render, Vercel) ----------------------------------
+# Ces plateformes servent l'application en HTTPS derrière un proxy.
+ON_RENDER = bool(os.environ.get("RENDER"))
+ON_VERCEL = bool(os.environ.get("VERCEL"))
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+for _host in (os.environ.get("RENDER_EXTERNAL_HOSTNAME"), os.environ.get("VERCEL_URL"),
+              os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")):
+    if _host:
+        CSRF_TRUSTED_ORIGINS.append(f"https://{_host}")
+if ON_RENDER or ON_VERCEL:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Sur Vercel, seul /tmp est inscriptible (et il est effacé entre deux exécutions).
+DATA_DIR = Path(os.environ.get("DATA_DIR", "/tmp/csu-data" if ON_VERCEL else BASE_DIR / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", DATA_DIR / "sauvegardes"))
 BACKUP_COPY_DIR = os.environ.get("BACKUP_COPY_DIR", "")
@@ -103,7 +118,9 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 if DATABASE_URL:
     import dj_database_url
 
-    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    # Vercel : fonctions éphémères, pas de connexion persistante.
+    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=0 if ON_VERCEL else 600,
+                                                  conn_health_checks=True)}
 else:
     DATABASES = {
         "default": {
@@ -139,8 +156,11 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
-if DEBUG:
+if DEBUG or ON_VERCEL:
     STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}
+if ON_VERCEL:
+    # Pas de collectstatic sur Vercel : WhiteNoise sert directement static/ et les fichiers de l'admin.
+    WHITENOISE_USE_FINDERS = True
 
 # Justificatifs (reçus, bordereaux) : servis uniquement aux utilisateurs connectés.
 MEDIA_ROOT = DATA_DIR / "justificatifs"

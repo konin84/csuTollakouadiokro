@@ -4,5 +4,5 @@ whitenoise>=6.7
 openpyxl>=3.1
 dj-database-url>=2.2
 tzdata>=2024.1   # base des fuseaux horaires (indispensable sous Windows)
-# Uniquement si PostgreSQL est utilisé (DATABASE_URL) :
-# psycopg[binary]>=3.2
+# PostgreSQL (DATABASE_URL) : hébergement Render / Vercel. Ignoré sous Windows (kit hors ligne).
+psycopg[binary]>=3.2; sys_platform != "win32"
