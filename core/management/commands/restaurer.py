@@ -34,9 +34,9 @@ class Command(BaseCommand):
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         with zipfile.ZipFile(path) as z:
             names = z.namelist()
-            if connection.vendor == "sqlite":
-                if "fsu_caisse.sqlite3" not in names:
-                    raise CommandError("Cette sauvegarde ne contient pas de base SQLite.")
+            # Copie du fichier SQLite si possible ; sinon export JSON (sauvegarde PostgreSQL), chargeable dans
+            # les deux bases : c'est ce qui permet de passer de PostgreSQL (Neon) à SQLite (VPS) et inversement.
+            if connection.vendor == "sqlite" and "fsu_caisse.sqlite3" in names:
                 db = Path(settings.DATABASES["default"]["NAME"])
                 connection.close()
                 if db.exists():
@@ -47,7 +47,8 @@ class Command(BaseCommand):
                     shutil.copyfileobj(src, dst)
             else:
                 if "donnees.json" not in names:
-                    raise CommandError("Cette sauvegarde ne contient pas d'export JSON.")
+                    raise CommandError("Cette sauvegarde est une copie SQLite : elle ne se restaure que dans une "
+                                       "base SQLite (DATABASE_URL vide).")
                 tmp = Path(settings.DATA_DIR) / f"restauration-{stamp}.json"
                 tmp.write_bytes(z.read("donnees.json"))
                 call_command("flush", "--no-input")

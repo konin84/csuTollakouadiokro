@@ -42,8 +42,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = env_bool("DEBUG", False)
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
-# --- Hébergement en ligne (Render, Vercel) ----------------------------------
-# Ces plateformes servent l'application en HTTPS derrière un proxy.
+# --- Hébergement en ligne (Render, Vercel, VPS) -----------------------------
+# Ces plateformes servent l'application en HTTPS derrière un proxy. Sur un VPS derrière Caddy : HTTPS=1.
 ON_RENDER = bool(os.environ.get("RENDER"))
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
@@ -51,7 +51,7 @@ for _host in (os.environ.get("RENDER_EXTERNAL_HOSTNAME"), os.environ.get("VERCEL
               os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")):
     if _host:
         CSRF_TRUSTED_ORIGINS.append(f"https://{_host}")
-if ON_RENDER or ON_VERCEL:
+if ON_RENDER or ON_VERCEL or env_bool("HTTPS"):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

@@ -64,7 +64,8 @@ rapports/      rapports mensuel/annuel et exports Excel
 parametres/    pages de paramètres (établissement, utilisateurs, tarifs, commissions…) ; /admin/ reste pour le dépannage
 templates/     gabarits HTML (français)
 static/        CSS et htmx.min.js (local)
-deploiement/   kit Windows (installer.bat/.ps1, mise à jour, désinstallation, wheels hors ligne) et guides
+deploiement/   kit Windows (installer.bat/.ps1, mise à jour, désinstallation, wheels hors ligne), kit Ubuntu (VPS) et guides
 ```
 
-Déploiement : voir [`deploiement/GUIDE-INSTALLATION.md`](deploiement/GUIDE-INSTALLATION.md).
+Déploiement : réseau local Windows, voir [`deploiement/GUIDE-INSTALLATION.md`](deploiement/GUIDE-INSTALLATION.md) ;
+serveur Ubuntu (VPS) avec HTTPS, voir [`deploiement/GUIDE-VPS.md`](deploiement/GUIDE-VPS.md).
