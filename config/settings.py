@@ -121,6 +121,9 @@ if DATABASE_URL:
     # Vercel : fonctions éphémères, pas de connexion persistante.
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=0 if ON_VERCEL else 600,
                                                   conn_health_checks=True)}
+    if ON_VERCEL:
+        # URL « pooled » de Neon (PgBouncer, mode transaction) : pas de curseurs côté serveur.
+        DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 else:
     DATABASES = {
         "default": {
