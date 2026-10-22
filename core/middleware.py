@@ -1,9 +1,40 @@
 import threading
-from urllib.parse import urlencode
+from urllib.parse import unquote, urlencode
 
 from django.shortcuts import redirect
 
 _local = threading.local()
+
+
+class VercelPathMiddleware:
+    """Sur Vercel, vercel.json réécrit toutes les adresses vers /api/index?__path=/<chemin d'origine>.
+
+    Django reçoit donc /api/index comme chemin : on rétablit le chemin d'origine (sinon toutes les
+    pages, connexion comprise, tournent en boucle de redirection). Sans __path, rien ne change.
+    """
+
+    PARAM = "__path"
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        query = request.META.get("QUERY_STRING", "")
+        if self.PARAM + "=" in query:
+            kept, original = [], None
+            for part in query.split("&"):
+                name, _, value = part.partition("=")
+                if name == self.PARAM:
+                    original = unquote(value.replace("+", "%20"))
+                elif part:
+                    kept.append(part)
+            if original is not None:
+                path = original if original.startswith("/") else "/" + original
+                request.path = request.path_info = path
+                request.META["PATH_INFO"] = path
+                request.META["QUERY_STRING"] = "&".join(kept)
+                request.__dict__.pop("GET", None)  # QueryDict recalculé à partir du nouveau QUERY_STRING
+        return self.get_response(request)
 
 
 def get_current_user():

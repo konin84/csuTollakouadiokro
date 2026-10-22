@@ -1,4 +1,4 @@
-"""Point d'entrée Vercel : expose l'application WSGI Django (chemin d'origine rétabli dans config/wsgi.py)."""
+"""Point d'entrée Vercel : expose l'application WSGI Django (chemin d'origine rétabli par core.middleware)."""
 import os
 import sys
 from pathlib import Path
