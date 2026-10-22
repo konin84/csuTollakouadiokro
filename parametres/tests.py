@@ -177,6 +177,12 @@ class ActTests(SettingsBase):
         self.assertEqual([a.name for a in r.context["acts"]], ["Échographie"])
         self.assertContains(self.client.get("/parametres/actes/", {"q": "zzz"}), "Aucun acte ne correspond")
 
+    def test_text_fields_are_trimmed(self):
+        self.client.post("/parametres/fournisseurs/nouveau/", {"name": "  Laborex   CI ", "phone": " 01 02 ",
+                                                              "address": "   "})
+        s = Supplier.objects.get(name="Laborex CI")
+        self.assertEqual((s.phone, s.address), ("01 02", ""))
+
 class SimpleListTests(SettingsBase):
     def test_commission_change_applies_without_restart(self):
         s = self.make_session(date(2026, 10, 1), laboratoire=10000)

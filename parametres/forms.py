@@ -4,13 +4,14 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils.text import slugify
 
 from caisse.forms import DateInput
+from core.forms import TrimTextMixin
 from caisse.models import Act, ActPrice, BankAccount, CommissionRule, ExpenseCategory, name_key
 from core.models import Facility
 from core.roles import ALL_ROLES, ROLE_HELP
 from stock.models import Supplier
 
 
-class FacilityForm(forms.ModelForm):
+class FacilityForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = Facility
         fields = ["name", "short_name", "address", "phone", "opening_date", "opening_cash", "cash_tolerance",
@@ -19,7 +20,7 @@ class FacilityForm(forms.ModelForm):
 
 
 # --- Utilisateurs ------------------------------------------------------------
-class UserForm(forms.ModelForm):
+class UserForm(TrimTextMixin, forms.ModelForm):
     roles = forms.MultipleChoiceField(
         label="Rôles", required=False, widget=forms.CheckboxSelectMultiple,
         choices=[(r, f"{r} — {ROLE_HELP[r]}") for r in ALL_ROLES],
@@ -80,7 +81,7 @@ class UserForm(forms.ModelForm):
 
 
 # --- Actes et tarifs -----------------------------------------------------------
-class ActForm(forms.ModelForm):
+class ActForm(TrimTextMixin, forms.ModelForm):
     price = forms.IntegerField(label="Prix unitaire (F)", min_value=0, required=False)
     valid_from = forms.DateField(label="Applicable à partir du", required=False, widget=DateInput())
 
@@ -120,7 +121,7 @@ class ActForm(forms.ModelForm):
         return act
 
 
-class ActPriceForm(forms.ModelForm):
+class ActPriceForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = ActPrice
         fields = ["price", "valid_from"]
@@ -138,7 +139,7 @@ class ActPriceForm(forms.ModelForm):
 
 
 # --- Listes simples -------------------------------------------------------------
-class CommissionRuleForm(forms.ModelForm):
+class CommissionRuleForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = CommissionRule
         fields = ["name", "beneficiary", "rate", "retained", "valid_from", "valid_to", "order"]
@@ -152,19 +153,19 @@ class CommissionRuleForm(forms.ModelForm):
         return data
 
 
-class ExpenseCategoryForm(forms.ModelForm):
+class ExpenseCategoryForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = ExpenseCategory
         fields = ["name", "default_fund", "order", "active"]
 
 
-class BankAccountForm(forms.ModelForm):
+class BankAccountForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = BankAccount
         fields = ["bank", "name", "number", "fund", "active"]
 
 
-class SupplierForm(forms.ModelForm):
+class SupplierForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = Supplier
         fields = ["name", "phone", "address"]

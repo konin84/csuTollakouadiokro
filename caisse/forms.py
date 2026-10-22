@@ -1,5 +1,7 @@
 from django import forms
 
+from core.forms import TrimTextMixin
+
 from .models import BankAccount, Deposit, Expense, ExpenseCategory, Visit
 
 
@@ -10,7 +12,7 @@ class DateInput(forms.DateInput):
         super().__init__(format="%Y-%m-%d", **kwargs)
 
 
-class ExpenseForm(forms.ModelForm):
+class ExpenseForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = Expense
         fields = ["category", "fund", "amount", "description", "beneficiary", "receipt"]
@@ -26,7 +28,7 @@ class ExpenseForm(forms.ModelForm):
         self.fields["receipt"].widget.attrs["accept"] = "image/*,application/pdf"
 
 
-class DepositForm(forms.ModelForm):
+class DepositForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = Deposit
         fields = ["date", "account", "amount", "reference", "depositor", "slip", "note"]
@@ -41,23 +43,23 @@ class DepositForm(forms.ModelForm):
         self.fields["slip"].widget.attrs["accept"] = "image/*,application/pdf"
 
 
-class CloseForm(forms.Form):
+class CloseForm(TrimTextMixin, forms.Form):
     counted_cash = forms.IntegerField(label="Argent compté dans la caisse (F)", min_value=0,
                                       widget=forms.NumberInput(attrs={"inputmode": "numeric", "step": 1}))
     notes = forms.CharField(label="Observations", required=False,
                             widget=forms.Textarea(attrs={"rows": 2}))
 
 
-class ValidateForm(forms.Form):
+class ValidateForm(TrimTextMixin, forms.Form):
     handed_over = forms.IntegerField(label="Argent reçu du caissier (F)", min_value=0,
                                      widget=forms.NumberInput(attrs={"inputmode": "numeric", "step": 1}))
 
 
-class ReopenForm(forms.Form):
+class ReopenForm(TrimTextMixin, forms.Form):
     reason = forms.CharField(label="Motif de la réouverture", max_length=255)
 
 
-class VisitForm(forms.ModelForm):
+class VisitForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = Visit
         fields = ["patient_name", "phone", "sex", "age"]
@@ -94,5 +96,5 @@ class VisitForm(forms.ModelForm):
         return name
 
 
-class CancelVisitForm(forms.Form):
+class CancelVisitForm(TrimTextMixin, forms.Form):
     reason = forms.CharField(label="Motif de l'annulation", max_length=255)

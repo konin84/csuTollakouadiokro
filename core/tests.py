@@ -97,3 +97,25 @@ class UserMenuTests(TestCase):
         self.assertContains(page, "<b>Awa KONE</b><small>Caissier</small>", html=False)
         self.assertContains(page, 'href="/mot-de-passe/"')
         self.assertContains(page, 'action="/deconnexion/"')
+
+
+class TrimTextTests(TestCase):
+    def test_single_line_text_is_trimmed_and_collapsed(self):
+        from django import forms
+
+        from core.forms import TrimTextMixin
+
+        class F(TrimTextMixin, forms.Form):
+            name = forms.CharField()
+            notes = forms.CharField(widget=forms.Textarea)
+            secret = forms.CharField(widget=forms.PasswordInput, strip=False)
+
+            def clean_name(self):
+                assert self.cleaned_data["name"] == "Jean Kouassi"  # déjà nettoyé pour les clean_<champ>()
+                return self.cleaned_data["name"]
+
+        f = F({"name": "  Jean   Kouassi ", "notes": "ligne 1\n\nligne 2", "secret": " mot  de passe "})
+        self.assertTrue(f.is_valid(), f.errors)
+        self.assertEqual(f.cleaned_data, {"name": "Jean Kouassi", "notes": "ligne 1\n\nligne 2",
+                                          "secret": " mot  de passe "})
+        self.assertFalse(F({"name": "   ", "notes": "x", "secret": "x"}).is_valid())  # champ obligatoire vide

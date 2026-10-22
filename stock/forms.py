@@ -1,11 +1,12 @@
 from django import forms
 
 from caisse.forms import DateInput
+from core.forms import TrimTextMixin
 
 from .models import Product, PurchaseOrder, PurchaseOrderLine, StockMovement
 
 
-class ProductForm(forms.ModelForm):
+class ProductForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = Product
         fields = ["name", "code", "form", "unit", "sale_price", "pack_unit", "pack_size", "pack_price",
@@ -76,14 +77,14 @@ class ProductForm(forms.ModelForm):
         return data
 
 
-class OrderForm(forms.ModelForm):
+class OrderForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = PurchaseOrder
         fields = ["date", "supplier", "note"]
         widgets = {"date": DateInput()}
 
 
-class OrderLineForm(forms.ModelForm):
+class OrderLineForm(TrimTextMixin, forms.ModelForm):
     class Meta:
         model = PurchaseOrderLine
         fields = ["product", "quantity", "unit_cost"]
@@ -102,7 +103,7 @@ class NewProductForm(ProductForm):
     initial_stock = forms.IntegerField(label="Total en stock", min_value=0, required=False)
 
 
-class StockEntryForm(forms.Form):
+class StockEntryForm(TrimTextMixin, forms.Form):
     """Quantité et prix par unité d'achat du produit (ex. boîte) : convertis en unités de stock à l'enregistrement."""
     quantity = forms.IntegerField(label="Quantité ajoutée", min_value=1,
                                   widget=forms.NumberInput(attrs={"inputmode": "numeric", "step": 1}))
@@ -120,7 +121,7 @@ class StockEntryForm(forms.Form):
     note = forms.CharField(label="Remarque", max_length=255, required=False)
 
 
-class LossForm(forms.Form):
+class LossForm(TrimTextMixin, forms.Form):
     product = forms.ModelChoiceField(label="Produit", queryset=Product.objects.filter(active=True))
     quantity = forms.IntegerField(label="Quantité sortie (en unités de stock, ex. comprimés)", min_value=1)
     date = forms.DateField(label="Date", widget=DateInput())
@@ -128,7 +129,7 @@ class LossForm(forms.Form):
                            widget=forms.TextInput(attrs={"placeholder": "Ex. périmé le 30/09, flacon cassé"}))
 
 
-class InitialStockForm(forms.Form):
+class InitialStockForm(TrimTextMixin, forms.Form):
     date = forms.DateField(label="Date de l'inventaire", widget=DateInput())
     note = forms.CharField(label="Remarque", max_length=255, required=False)
 
