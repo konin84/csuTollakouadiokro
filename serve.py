@@ -34,8 +34,16 @@ def main():
                   logging.StreamHandler()],
     )
     logging.info("CSU Caisse : démarrage sur http://%s:%s (données : %s)", host, port, settings.DATA_DIR)
+    # Derrière le proxy HTTPS de Render : Waitress efface X-Forwarded-Proto sauf si le proxy est déclaré
+    # de confiance ; sans cela Django croit la requête en HTTP et refuse les formulaires (CSRF).
+    # Jamais sur le réseau local : un poste pourrait falsifier ces en-têtes.
+    proxy = {}
+    trusted_proxy = os.environ.get("TRUSTED_PROXY") or ("*" if os.environ.get("RENDER") else "")
+    if trusted_proxy:
+        proxy = dict(trusted_proxy=trusted_proxy, trusted_proxy_count=1,
+                     trusted_proxy_headers={"x-forwarded-proto", "x-forwarded-for"})
     serve(application, host=host, port=port, threads=int(os.environ.get("THREADS", "8")),
-          ident="CSU Caisse", max_request_body_size=20 * 1024 * 1024)
+          ident="CSU Caisse", max_request_body_size=20 * 1024 * 1024, **proxy)
 
 
 if __name__ == "__main__":
