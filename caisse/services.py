@@ -242,7 +242,7 @@ def month_bounds(year: int, month: int):
 
 
 def active_acts():
-    return list(Act.objects.filter(active=True).order_by("order", "name"))
+    return list(Act.objects.filter(active=True).order_by("name_key"))
 
 
 def acts_for_display(totals_list=()):
@@ -251,7 +251,7 @@ def acts_for_display(totals_list=()):
     for t in totals_list:
         used.update(k for k, v in t.acts_amount.items() if v)
     qs = Act.objects.filter(active=True) | Act.objects.filter(id__in=used)
-    return list(qs.distinct().order_by("order", "name"))
+    return list(qs.distinct().order_by("name_key"))
 
 
 def legacy_lab_act():

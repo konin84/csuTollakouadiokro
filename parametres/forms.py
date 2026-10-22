@@ -86,7 +86,7 @@ class ActForm(forms.ModelForm):
 
     class Meta:
         model = Act
-        fields = ["name", "category", "fund", "is_lab", "order", "active"]
+        fields = ["name", "category", "fund", "is_lab", "active"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

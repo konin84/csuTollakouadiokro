@@ -60,7 +60,7 @@ class Act(models.Model):
     active = models.BooleanField("actif", default=True)
 
     class Meta:
-        ordering = ["order", "name"]
+        ordering = ["name_key"]  # ordre alphabétique, accents ignorés (« Échographie » avec les E)
         verbose_name = "acte / prestation"
         verbose_name_plural = "actes et prestations"
 
@@ -240,7 +240,7 @@ class ActEntry(models.Model):
 
     class Meta:
         unique_together = [("session", "act")]
-        ordering = ["act__order"]
+        ordering = ["act__name_key"]
         verbose_name = "recette par acte"
         verbose_name_plural = "recettes par acte"
 

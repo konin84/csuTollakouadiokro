@@ -15,8 +15,8 @@ class ActPriceInline(admin.TabularInline):
 
 @admin.register(Act)
 class ActAdmin(admin.ModelAdmin):
-    list_display = ("name", "category", "fund", "entry_mode", "is_lab", "current_price", "order", "active")
-    list_editable = ("order", "active")
+    list_display = ("name", "category", "fund", "entry_mode", "is_lab", "current_price", "active")
+    list_editable = ("active",)
     list_filter = ("category", "fund", "active")
     search_fields = ("name", "code")
     prepopulated_fields = {"code": ("name",)}

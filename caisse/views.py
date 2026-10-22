@@ -62,7 +62,7 @@ def _session_context(request, session):
     dep_total = sum(d.amount for d in deposits_today)
     expected = morning + totals.net_total - dep_total
     cat_rank = {code: i for i, (code, _label) in enumerate(Act.CATEGORIES)}
-    entries = sorted(session.entries.all(), key=lambda e: (cat_rank.get(e.act.category, 99), e.act.order, e.act.name))
+    entries = sorted(session.entries.all(), key=lambda e: (cat_rank.get(e.act.category, 99), e.act.name_key))
     from_visits = services.visit_act_totals(session)
     groups = []
     for e in entries:
@@ -378,7 +378,7 @@ def _visit_choices(session, visit=None):
     acts = (Act.objects.filter(active=True) | Act.objects.filter(id__in=used)).distinct()
     cat_rank = {code: i for i, (code, _label) in enumerate(Act.CATEGORIES)}
     groups = []
-    for a in sorted(acts, key=lambda a: (cat_rank.get(a.category, 99), a.order, a.name)):
+    for a in sorted(acts, key=lambda a: (cat_rank.get(a.category, 99), a.name_key)):
         label = a.get_category_display()
         if not groups or groups[-1][0] != label:
             groups.append((label, []))
